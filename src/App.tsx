@@ -45,13 +45,13 @@ function App() {
             setLoading(false);
             setSyncStatus('error');
           }
-        }, 10000); // 10 second timeout
+        }, 15000); // 15 second timeout for full initialization
         
         // First, initialize auth state with timeout
         const currentUser = await Promise.race([
           AuthService.getCurrentUser(),
           new Promise<null>((_, reject) =>
-            setTimeout(() => reject(new Error('Auth initialization timeout')), 5000)
+            setTimeout(() => reject(new Error('Auth initialization timeout')), 8000)
           )
         ]);
         
@@ -59,49 +59,84 @@ function App() {
           setUser(currentUser);
         }
         
-        // Subscribe to auth changes
-        authUnsubscribe = AuthService.onAuthStateChange(async (newUser) => {
-          if (!mounted) return;
-          
-          setUser(newUser);
-          
-          // Refresh todos when auth state changes (both sign in and sign out)
+        // Check for localStorage data to migrate
+        await MigrationService.migrateFromLocalStorage();
+        
+        // Load todos from Supabase with longer timeout - only for anonymous users
+        if (!currentUser) {
           try {
-            const refreshedTodos = await Promise.race([
+            const supabaseTodos = await Promise.race([
               SupabaseService.getTodos(),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('Todo refresh timeout')), 5000)
+              new Promise<Todo[]>((resolve, reject) =>
+                setTimeout(() => {
+                  console.warn('Initial todo loading timed out after 10 seconds, returning empty array');
+                  resolve([]);
+                }, 10000)
               )
             ]);
             
             if (mounted) {
-              setTodos(refreshedTodos);
+              setTodos(supabaseTodos);
             }
           } catch (error) {
-            console.error('Failed to refresh todos after auth change:', error);
+            console.error('Failed to load initial todos:', error);
             if (mounted) {
-              setSyncStatus('error');
+              setTodos([]); // Fallback to empty todos
             }
           }
-        });
-        
-        // Check for localStorage data to migrate
-        await MigrationService.migrateFromLocalStorage();
-        
-        // Load todos from Supabase with timeout
-        const supabaseTodos = await Promise.race([
-          SupabaseService.getTodos(),
-          new Promise<Todo[]>((resolve) =>
-            setTimeout(() => {
-              console.warn('Todo loading timed out, returning empty array');
-              resolve([]);
-            }, 5000)
-          )
-        ]);
-        
-        if (mounted) {
-          setTodos(supabaseTodos);
+        } else {
+          // For signed-in users, start with empty todos
+          if (mounted) {
+            setTodos([]);
+          }
         }
+        
+        // Subscribe to auth changes - set up after initial load to prevent duplicate calls
+        authUnsubscribe = AuthService.onAuthStateChange(async (newUser, event) => {
+          if (!mounted) return;
+          
+          // Handle migration logic for signed-in users - only during INITIAL_SESSION
+          if (newUser && event === 'INITIAL_SESSION') {
+            // Check if we need to migrate for this user
+            const deviceId = DeviceService.getDeviceId();
+            if (deviceId) {
+              try {
+                console.log('Starting migration for device:', deviceId, 'user:', newUser.id, 'event:', event);
+                await MigrationService.migrateDeviceToUser(newUser.id);
+                console.log('Migration completed successfully');
+                
+                // Add a small delay to ensure database consistency
+                await new Promise(resolve => setTimeout(resolve, 500));
+              } catch (error) {
+                console.error('Failed to migrate device todos:', error);
+              }
+            }
+          }
+          
+          setUser(newUser);
+          
+          try {
+              setSyncStatus('syncing');
+              const refreshedTodos = await Promise.race([
+                SupabaseService.getTodos(),
+                new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error('Todo refresh timeout after auth change')), 8000)
+                )
+              ]);
+              
+              if (mounted) {
+                setTodos(refreshedTodos);
+                setSyncStatus('synced');
+              }
+            } catch (error) {
+              console.error('Failed to refresh todos after auth change:', error);
+              if (mounted) {
+                setSyncStatus('error');
+                // Don't clear todos on error, keep existing ones
+              }
+            }
+        });
+          
         
         // Process any offline queue
         if (navigator.onLine) {

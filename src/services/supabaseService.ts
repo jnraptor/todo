@@ -25,10 +25,19 @@ export class SupabaseService {
   
   static async getTodos(): Promise<Todo[]> {
     try {
+      // Check if Supabase is properly configured
+      if (!process.env.REACT_APP_SUPABASE_URL || !process.env.REACT_APP_SUPABASE_ANON_KEY) {
+        console.error('Supabase configuration missing. Please check your environment variables.');
+        throw new Error('Supabase not configured');
+      }
+
+      console.log('Getting todos...');
+      const startTime = Date.now();
+      
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError) {
-        console.warn('Auth error when getting todos:', authError);
+        console.warn('Auth error when getting todos:', authError.message);
         // Continue with anonymous access
       }
       
@@ -36,6 +45,7 @@ export class SupabaseService {
       
       if (user && !authError) {
         // Authenticated: show only user todos
+        console.log(`Loading todos for authenticated user: ${user.id}`);
         query = query.eq('user_id', user.id);
       } else {
         // Anonymous: show only unmigrated device todos
@@ -44,6 +54,7 @@ export class SupabaseService {
           console.warn('No device ID available, returning empty todos');
           return [];
         }
+        console.log(`Loading todos for device: ${deviceId}`);
         query = query
           .eq('device_id', deviceId)
           .is('migrated_to_user_id', null);
@@ -51,14 +62,27 @@ export class SupabaseService {
       
       const { data, error } = await query.order('created_at', { ascending: false });
       
+      const endTime = Date.now();
+      console.log(`Todo query completed in ${endTime - startTime}ms`);
+      
       if (error) {
-        console.error('Database error when getting todos:', error);
+        console.error('Database error when getting todos:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         throw error;
       }
       
-      return (data || []).map(this.convertToTodo);
+      const todos = (data || []).map(this.convertToTodo);
+      console.log(`Successfully loaded ${todos.length} todos`);
+      return todos;
     } catch (error) {
-      console.error('Failed to get todos:', error);
+      console.error('Failed to get todos:', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
       // Re-throw to let caller handle it
       throw error;
     }

@@ -31,6 +31,7 @@ export class MigrationService {
   
   static async migrateDeviceToUser(userId: string): Promise<void> {
     const deviceId = DeviceService.getDeviceId();
+    console.log(`Starting migration for device ${deviceId} to user ${userId}`);
     
     // Get unmigrated todos for this device
     const { data: deviceTodos, error: fetchError } = await supabase
@@ -39,11 +40,17 @@ export class MigrationService {
       .eq('device_id', deviceId)
       .is('migrated_to_user_id', null);
     
-    if (fetchError) throw fetchError;
+    if (fetchError) {
+      console.error('Error fetching device todos for migration:', fetchError);
+      throw fetchError;
+    }
+    
     if (!deviceTodos || deviceTodos.length === 0) {
       console.log('No device todos to migrate');
       return;
     }
+    
+    console.log(`Found ${deviceTodos.length} device todos to migrate:`, deviceTodos.map(t => ({ id: t.id, text: t.text })));
     
     // Create copies for user account
     const userTodos = deviceTodos.map(todo => ({
@@ -53,14 +60,23 @@ export class MigrationService {
       original_device_id: deviceId
     }));
     
-    const { error: insertError } = await supabase
+    console.log('Creating user todos:', userTodos);
+    const { data: insertedTodos, error: insertError } = await supabase
       .from('todos')
-      .insert(userTodos);
+      .insert(userTodos)
+      .select();
     
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.error('Error inserting user todos:', insertError);
+      throw insertError;
+    }
+    
+    console.log(`Successfully created ${insertedTodos?.length || 0} user todos`);
     
     // Mark originals as migrated (don't delete them)
     const todoIds = deviceTodos.map(t => t.id);
+    console.log('Marking original todos as migrated:', todoIds);
+    
     const { error: updateError } = await supabase
       .from('todos')
       .update({
@@ -69,9 +85,12 @@ export class MigrationService {
       })
       .in('id', todoIds);
     
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('Error marking todos as migrated:', updateError);
+      throw updateError;
+    }
     
     // Keep device ID for future use (don't clear it)
-    console.log(`Migrated ${deviceTodos.length} todos to user account, device ID preserved`);
+    console.log(`Migration completed: ${deviceTodos.length} todos migrated to user account, device ID preserved`);
   }
 }

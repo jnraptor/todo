@@ -1,10 +1,9 @@
 import { supabase } from '../config/supabase';
 import { AuthProvider, User } from '../types/auth';
-import { MigrationService } from './migrationService';
-import { DeviceService } from './deviceService';
 import { getRedirectUrl } from '../utils/env';
 
 export class AuthService {
+  
   static async signInWithProvider(provider: AuthProvider): Promise<void> {
     const redirectTo = getRedirectUrl();
     
@@ -45,23 +44,15 @@ export class AuthService {
     }
   }
   
-  static onAuthStateChange(callback: (user: User | null) => void): () => void {
+  static onAuthStateChange(callback: (user: User | null, event?: string) => void): () => void {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          // Trigger migration when user signs in
-          const deviceId = DeviceService.getDeviceId();
-          if (deviceId) {
-            try {
-              await MigrationService.migrateDeviceToUser(session.user.id);
-            } catch (error) {
-              console.error('Failed to migrate device todos:', error);
-            }
-          }
-          
-          callback(this.formatUser(session.user));
+        console.log('Auth state change event:', event, 'Session:', !!session?.user);
+        
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+          callback(this.formatUser(session.user), event);
         } else if (event === 'SIGNED_OUT') {
-          callback(null);
+          callback(null, event);
         }
       }
     );
