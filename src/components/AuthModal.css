@@ -1,0 +1,121 @@
+.auth-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.auth-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.auth-modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.auth-modal-close:hover {
+  background-color: #f5f5f5;
+}
+
+.auth-modal-content h2 {
+  margin: 0 0 0.5rem 0;
+  color: #333;
+}
+
+.auth-modal-content p {
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.auth-error {
+  background-color: #fee;
+  border: 1px solid #fcc;
+  color: #c33;
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.auth-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.auth-provider-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.auth-provider-button:hover {
+  border-color: #999;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.auth-provider-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-provider-button.google:hover {
+  border-color: #4285F4;
+}
+
+.auth-provider-button.github:hover {
+  border-color: #333;
+}
+
+.provider-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.auth-modal-footer {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #eee;
+  text-align: center;
+}
+
+.auth-modal-footer p {
+  font-size: 0.75rem;
+  color: #999;
+  margin: 0;
+}

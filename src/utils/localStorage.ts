@@ -95,3 +95,8 @@ export const getStorageInfo = (): { used: number; available: number; percentage:
     percentage: Math.round((used / estimated) * 100)
   };
 };
+
+// Function to clear todos (used after migration)
+export const clearTodos = (): void => {
+localStorage.removeItem(TODOS_KEY);
+};

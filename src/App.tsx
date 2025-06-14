@@ -1,60 +1,280 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Todo, FilterType } from './types';
-import { loadTodos, saveTodos } from './utils/localStorage';
+import { User } from './types/auth';
+import { SupabaseService } from './services/supabaseService';
+import { AuthService } from './services/authService';
+import { MigrationService } from './services/migrationService';
+import { OfflineQueueService } from './services/offlineQueueService';
+import { DeviceService } from './services/deviceService';
 import TodoInput from './components/TodoInput';
 import TodoList from './components/TodoList';
 import FilterButtons from './components/FilterButtons';
+import ConnectionStatus from './components/ConnectionStatus';
+import AuthPrompt from './components/AuthPrompt';
+import AuthModal from './components/AuthModal';
+import UserProfile from './components/UserProfile';
+import AuthCallback from './components/AuthCallback';
 import './App.css';
 
 function App() {
-  const [todos, setTodos] = useState<Todo[]>(() => {
-    // Initialize state with data from localStorage
-    return loadTodos();
-  });
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [queueLength, setQueueLength] = useState(0);
+  const [user, setUser] = useState<User | null>(null);
 
-  const saveToStorage = (newTodos: Todo[]) => {
-    const success = saveTodos(newTodos);
-    if (!success) {
-      setSaveError('Failed to save todos. Storage may be full.');
-    } else {
-      setSaveError(null);
+  // Initialize auth state
+  useEffect(() => {
+    const initAuth = async () => {
+      const currentUser = await AuthService.getCurrentUser();
+      setUser(currentUser);
+    };
+    
+    initAuth();
+    
+    // Subscribe to auth changes
+    const unsubscribe = AuthService.onAuthStateChange((newUser) => {
+      setUser(newUser);
+      // Refresh todos when auth state changes (both sign in and sign out)
+      SupabaseService.getTodos().then(setTodos).catch(error => {
+        console.error('Failed to refresh todos after auth change:', error);
+      });
+    });
+    
+    return unsubscribe;
+  }, []);
+
+  // Initialize and migrate data
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        setSyncStatus('syncing');
+        
+        // Check for localStorage data to migrate
+        await MigrationService.migrateFromLocalStorage();
+        
+        // Load todos from Supabase
+        const supabaseTodos = await SupabaseService.getTodos();
+        setTodos(supabaseTodos);
+        
+        // Process any offline queue
+        if (navigator.onLine) {
+          await OfflineQueueService.processQueue();
+          setQueueLength(OfflineQueueService.getQueueLength());
+        }
+        
+        setSyncStatus('synced');
+      } catch (error) {
+        console.error('Failed to initialize:', error);
+        setSyncStatus('error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    initializeApp();
+  }, []);
+
+  // Set up real-time subscription
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    
+    const setupSubscription = async () => {
+      try {
+        unsubscribe = await SupabaseService.subscribeToTodos((newTodos) => {
+          setTodos(newTodos);
+        });
+      } catch (error) {
+        console.error('Failed to set up real-time subscription:', error);
+      }
+    };
+    
+    if (!loading) {
+      setupSubscription();
+    }
+    
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [loading]);
+
+  // Monitor online/offline status
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      setSyncStatus('syncing');
+      try {
+        await OfflineQueueService.processQueue();
+        const todos = await SupabaseService.getTodos();
+        setTodos(todos);
+        setQueueLength(0);
+        setSyncStatus('synced');
+      } catch (error) {
+        console.error('Failed to sync after coming online:', error);
+        setSyncStatus('error');
+      }
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      setSyncStatus('synced'); // Reset sync status when offline
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Check if we should show auth prompt
+  useEffect(() => {
+    const checkAuthPrompt = () => {
+      const todoCount = todos.length;
+      const deviceId = DeviceService.getDeviceId();
+      const authPromptDismissed = localStorage.getItem(`authPromptDismissed_${deviceId}`);
+      
+      console.log('Auth prompt check:', { todoCount, user, authPromptDismissed });
+      
+      // Show prompt if: not authenticated, has 3+ todos, and hasn't been dismissed for this device
+      if (todoCount >= 3 && !user && !authPromptDismissed) {
+        console.log('Showing auth prompt');
+        setShowAuthPrompt(true);
+      }
+    };
+    
+    checkAuthPrompt();
+  }, [todos, user]);
+
+  const addTodo = async (text: string) => {
+    try {
+      if (isOnline) {
+        // Create optimistic todo first for immediate UI feedback
+        const tempTodo: Todo = {
+          id: `temp_${Date.now()}`,
+          text,
+          completed: false,
+          createdAt: new Date(),
+          syncStatus: 'pending'
+        };
+        setTodos([tempTodo, ...todos]);
+        
+        // Then create in Supabase and replace with real todo
+        const newTodo = await SupabaseService.createTodo(text);
+        setTodos(prevTodos => [newTodo, ...prevTodos.filter(t => t.id !== tempTodo.id)]);
+      } else {
+        // Optimistic update for offline
+        const tempTodo: Todo = {
+          id: `temp_${Date.now()}`,
+          text,
+          completed: false,
+          createdAt: new Date(),
+          syncStatus: 'pending'
+        };
+        setTodos([tempTodo, ...todos]);
+        OfflineQueueService.addToQueue({ type: 'create', data: { text } });
+        setQueueLength(OfflineQueueService.getQueueLength());
+      }
+    } catch (error) {
+      console.error('Failed to add todo:', error);
+      setSyncStatus('error');
+      // Remove the optimistic todo on error
+      setTodos(prevTodos => prevTodos.filter(t => !t.id.startsWith('temp_')));
     }
   };
 
-  const addTodo = (text: string) => {
-    const newTodo: Todo = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      text,
-      completed: false,
-      createdAt: new Date()
-    };
-    const newTodos = [newTodo, ...todos];
-    setTodos(newTodos);
-    saveToStorage(newTodos);
+  const toggleTodo = async (id: string) => {
+    try {
+      const todo = todos.find(t => t.id === id);
+      if (!todo) return;
+      
+      // Always do optimistic update first for immediate UI feedback
+      setTodos(todos.map(t =>
+        t.id === id ? { ...t, completed: !t.completed, syncStatus: isOnline ? 'synced' : 'pending' } : t
+      ));
+      
+      if (isOnline && !id.startsWith('temp_')) {
+        await SupabaseService.updateTodo(id, { completed: !todo.completed });
+      } else if (!id.startsWith('temp_')) {
+        OfflineQueueService.addToQueue({
+          type: 'update',
+          data: { id, updates: { completed: !todo.completed } }
+        });
+        setQueueLength(OfflineQueueService.getQueueLength());
+      }
+    } catch (error) {
+      console.error('Failed to toggle todo:', error);
+      setSyncStatus('error');
+      // Revert optimistic update on error
+      try {
+        const freshTodos = await SupabaseService.getTodos();
+        setTodos(freshTodos);
+      } catch (revertError) {
+        console.error('Failed to revert after toggle error:', revertError);
+      }
+    }
   };
 
-  const toggleTodo = (id: string) => {
-    const newTodos = todos.map(todo =>
-      todo.id === id ? { ...todo, completed: !todo.completed } : todo
-    );
-    setTodos(newTodos);
-    saveToStorage(newTodos);
+  const deleteTodo = async (id: string) => {
+    try {
+      // Always do optimistic update first for immediate UI feedback
+      setTodos(todos.filter(t => t.id !== id));
+      
+      if (isOnline && !id.startsWith('temp_')) {
+        await SupabaseService.deleteTodo(id);
+      } else if (!id.startsWith('temp_')) {
+        OfflineQueueService.addToQueue({ type: 'delete', data: { id } });
+        setQueueLength(OfflineQueueService.getQueueLength());
+      }
+    } catch (error) {
+      console.error('Failed to delete todo:', error);
+      setSyncStatus('error');
+      // Revert optimistic update on error
+      try {
+        const freshTodos = await SupabaseService.getTodos();
+        setTodos(freshTodos);
+      } catch (revertError) {
+        console.error('Failed to revert after delete error:', revertError);
+      }
+    }
   };
 
-  const deleteTodo = (id: string) => {
-    const newTodos = todos.filter(todo => todo.id !== id);
-    setTodos(newTodos);
-    saveToStorage(newTodos);
-  };
-
-  const editTodo = (id: string, newText: string) => {
-    const newTodos = todos.map(todo =>
-      todo.id === id ? { ...todo, text: newText } : todo
-    );
-    setTodos(newTodos);
-    saveToStorage(newTodos);
+  const editTodo = async (id: string, newText: string) => {
+    try {
+      // Always do optimistic update first for immediate UI feedback
+      setTodos(todos.map(t =>
+        t.id === id ? { ...t, text: newText, syncStatus: isOnline ? 'synced' : 'pending' } : t
+      ));
+      
+      if (isOnline && !id.startsWith('temp_')) {
+        await SupabaseService.updateTodo(id, { text: newText });
+      } else if (!id.startsWith('temp_')) {
+        OfflineQueueService.addToQueue({
+          type: 'update',
+          data: { id, updates: { text: newText } }
+        });
+        setQueueLength(OfflineQueueService.getQueueLength());
+      }
+    } catch (error) {
+      console.error('Failed to edit todo:', error);
+      setSyncStatus('error');
+      // Revert optimistic update on error
+      try {
+        const freshTodos = await SupabaseService.getTodos();
+        setTodos(freshTodos);
+      } catch (revertError) {
+        console.error('Failed to revert after edit error:', revertError);
+      }
+    }
   };
 
   const todoCount = {
@@ -63,41 +283,102 @@ function App() {
     completed: todos.filter(todo => todo.completed).length
   };
 
-  return (
-    <div className="App">
-      <div className="todo-container">
-        <header className="app-header">
-          <h1>Todo App</h1>
-          <p>Stay organized and get things done!</p>
-        </header>
-        
-        <main className="app-main">
-          {saveError && (
-            <div className="error-message">
-              ⚠️ {saveError}
-            </div>
-          )}
-          
-          <TodoInput onAddTodo={addTodo} />
-          
-          {todos.length > 0 && (
-            <FilterButtons
-              currentFilter={filter}
-              onFilterChange={setFilter}
-              todoCount={todoCount}
-            />
-          )}
-          
-          <TodoList
-            todos={todos}
-            filter={filter}
-            onToggle={toggleTodo}
-            onDelete={deleteTodo}
-            onEdit={editTodo}
-          />
-        </main>
+  const handleAuthPromptAction = () => {
+    setShowAuthPrompt(false);
+    setShowAuthModal(true);
+  };
+
+  const handleAuthPromptDismiss = () => {
+    const deviceId = DeviceService.getDeviceId();
+    localStorage.setItem(`authPromptDismissed_${deviceId}`, 'true');
+    setShowAuthPrompt(false);
+  };
+
+  const handleSignInClick = () => {
+    setShowAuthModal(true);
+  };
+
+  if (loading) {
+    return (
+      <div className="App">
+        <div className="loading-container">
+          <div className="spinner"></div>
+          <p>Loading your todos...</p>
+        </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <Router>
+      <Routes>
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/" element={
+          <div className="App">
+            <ConnectionStatus
+              isOnline={isOnline}
+              syncStatus={syncStatus}
+              queueLength={queueLength}
+            />
+            
+            <div className="todo-container">
+              <header className="app-header">
+                <div className="header-content">
+                  <div>
+                    <h1>Todo App</h1>
+                    <p>Stay organized and get things done!</p>
+                  </div>
+                  <div className="auth-section">
+                    {user ? (
+                      <UserProfile user={user} />
+                    ) : (
+                      <button
+                        className="sign-in-button"
+                        onClick={handleSignInClick}
+                      >
+                        Sign In
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </header>
+              
+              <main className="app-main">
+                {showAuthPrompt && !user && (
+                  <AuthPrompt
+                    onDismiss={handleAuthPromptDismiss}
+                    onCreateAccount={handleAuthPromptAction}
+                  />
+                )}
+                
+                <TodoInput onAddTodo={addTodo} />
+                
+                {todos.length > 0 && (
+                  <FilterButtons
+                    currentFilter={filter}
+                    onFilterChange={setFilter}
+                    todoCount={todoCount}
+                  />
+                )}
+                
+                <TodoList
+                  todos={todos}
+                  filter={filter}
+                  onToggle={toggleTodo}
+                  onDelete={deleteTodo}
+                  onEdit={editTodo}
+                />
+              </main>
+            </div>
+            
+            <AuthModal
+              isOpen={showAuthModal}
+              onClose={() => setShowAuthModal(false)}
+            />
+          </div>
+        } />
+      </Routes>
+    </Router>
   );
 }
 

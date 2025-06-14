@@ -4,56 +4,59 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 
-// Mock localStorage for all tests
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
+// Mock environment variables for tests
+process.env.REACT_APP_SUPABASE_URL = 'https://test.supabase.co';
+process.env.REACT_APP_SUPABASE_ANON_KEY = 'test-anon-key';
 
-  return {
-    getItem: jest.fn((key: string) => store[key] || null),
-    setItem: jest.fn((key: string, value: string) => {
-      store[key] = value;
-    }),
-    removeItem: jest.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: jest.fn(() => {
-      store = {};
-    }),
-    key: jest.fn((index: number) => {
-      const keys = Object.keys(store);
-      return keys[index] || null;
-    }),
-    get length() {
-      return Object.keys(store).length;
+// Mock react-router-dom
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  BrowserRouter: ({ children }: { children: any }) => children,
+  Routes: ({ children }: { children: any }) => children,
+  Route: ({ element }: { element: any }) => element,
+  useNavigate: () => jest.fn(),
+}));
+
+// Mock Supabase client
+jest.mock('./config/supabase', () => ({
+  supabase: {
+    auth: {
+      signInWithOAuth: jest.fn(),
+      signOut: jest.fn(),
+      getUser: jest.fn(),
+      getSession: jest.fn(),
+      onAuthStateChange: jest.fn(() => ({
+        data: { subscription: { unsubscribe: jest.fn() } }
+      })),
     },
-    hasOwnProperty: jest.fn((key: string) => key in store)
-  };
-})();
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        order: jest.fn(() => ({
+          then: jest.fn()
+        }))
+      })),
+      insert: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      on: jest.fn(() => ({
+        subscribe: jest.fn()
+      }))
+    }))
+  },
+  getSupabaseClient: jest.fn()
+}));
 
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock
-});
+// Mock services
+jest.mock('./services/migrationService', () => ({
+  MigrationService: {
+    migrateDeviceToUser: jest.fn(),
+    migrateFromLocalStorage: jest.fn(),
+  }
+}));
 
-// Mock Date.now for consistent test results
-const mockDateNow = jest.spyOn(Date, 'now');
-mockDateNow.mockReturnValue(1640995200000); // 2022-01-01T00:00:00.000Z
-
-// Mock Math.random for consistent test results
-const mockMathRandom = jest.spyOn(Math, 'random');
-mockMathRandom.mockReturnValue(0.123456789);
-
-// Reset mocks before each test
-beforeEach(() => {
-  localStorageMock.clear();
-  jest.clearAllMocks();
-  
-  // Reset the mock implementations
-  mockDateNow.mockReturnValue(1640995200000);
-  mockMathRandom.mockReturnValue(0.123456789);
-});
-
-// Cleanup after all tests
-afterAll(() => {
-  mockDateNow.mockRestore();
-  mockMathRandom.mockRestore();
-});
+jest.mock('./services/deviceService', () => ({
+  DeviceService: {
+    getDeviceId: jest.fn(() => 'test-device-id'),
+    hasDeviceId: jest.fn(() => true),
+  }
+}));

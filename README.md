@@ -1,74 +1,142 @@
 # Todo App
 
-A modern, responsive todo application built with React and TypeScript. Stay organized and get things done with this clean and intuitive interface.
+A modern, full-stack todo application built with React, TypeScript, and Supabase. Features seamless authentication, real-time sync, offline support, and Docker deployment. Stay organized and get things done with this professional-grade application.
 
-![Todo App Screenshot](https://via.placeholder.com/600x400/667eea/ffffff?text=Todo+App)
+![Todo App Screenshot](https://via.placeholder.com/600x400/667eea/ffffff?text=Todo+App+with+Auth)
 
-## Features
+## 🚀 Features
 
 ### Core Functionality
 - ✅ **Add Todos**: Quickly add new tasks with a simple input form
 - ✅ **Edit Todos**: Double-click any todo or use the Edit button to modify text
 - ✅ **Delete Todos**: Remove completed or unwanted tasks
 - ✅ **Toggle Completion**: Mark todos as complete/incomplete with checkboxes
-- ✅ **Persistent Storage**: All todos are saved to browser localStorage
+- ✅ **Smart Filtering**: View All, Active, or Completed todos
+- ✅ **Live Counters**: See how many items are left and completed
+
+### Authentication & User Management
+- 🔐 **Anonymous-First Approach**: App works without authentication, prompts after 3 todos
+- 🔑 **Google OAuth Integration**: Sign in with Google account
+- 🔑 **GitHub OAuth Integration**: Sign in with GitHub account
+- 🔄 **Seamless Migration**: Anonymous todos automatically migrate when user signs in
+- 👤 **User Profile**: Beautiful dropdown with user info and sign out option
+- 🔒 **Session Management**: Auto-refresh tokens, persistent sessions
 
 ### Advanced Features
-- 🔍 **Smart Filtering**: View All, Active, or Completed todos
-- 📊 **Live Counters**: See how many items are left and completed
-- 📱 **Responsive Design**: Works perfectly on desktop and mobile devices
+- 📱 **Responsive Design**: Works perfectly on desktop, tablet, and mobile devices
 - 🎨 **Modern UI**: Beautiful gradient design with smooth animations
 - ⌨️ **Keyboard Support**: Press Enter to add todos, Escape to cancel edits
 - 💾 **Robust Storage**: Intelligent localStorage management with quota handling
-- ⚠️ **Error Handling**: Graceful handling of storage limitations and errors
+- ⚠️ **Error Handling**: Graceful handling of storage limitations and auth errors
+- 🌐 **Real-time Sync**: Data syncs across devices when authenticated
+- 📴 **Offline Support**: Works offline with automatic sync when reconnected
 
-## Technology Stack
+### DevOps & Deployment
+- 🐳 **Docker Support**: Production and development containers
+- 🔧 **Docker Compose**: Easy multi-environment deployment
+- 📦 **Optimized Builds**: Multi-stage Docker builds for minimal image size
+- 🚀 **Production Ready**: Nginx serving, environment configuration
 
-- **Frontend**: React 18 with TypeScript
+## 🛠 Technology Stack
+
+### Frontend
+- **Framework**: React 19 with TypeScript
 - **Styling**: CSS3 with Flexbox and CSS Grid
 - **State Management**: React Hooks (useState, useEffect)
-- **Data Persistence**: Browser localStorage API
+- **Routing**: React Router DOM v7
 - **Build Tool**: Create React App
+
+### Backend & Services
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth with OAuth providers
+- **Real-time**: Supabase Realtime subscriptions
+- **Storage**: Browser localStorage + Supabase sync
+
+### DevOps
+- **Containerization**: Docker with multi-stage builds
+- **Orchestration**: Docker Compose
+- **Web Server**: Nginx (production)
 - **Development**: Hot reload with React Scripts
 
-## Project Structure
+### Testing
+- **Framework**: Jest with React Testing Library
+- **Coverage**: Unit tests for services and components
+- **Integration**: End-to-end user flow testing
+
+## 📁 Project Structure
 
 ```
 src/
 ├── components/
-│   ├── TodoInput.tsx      # Input form for adding new todos
-│   ├── TodoItem.tsx       # Individual todo item with edit/delete
-│   ├── TodoList.tsx       # List container for all todos
-│   └── FilterButtons.tsx  # Filter controls and counters
+│   ├── AuthCallback.tsx      # OAuth callback handler
+│   ├── AuthModal.tsx         # OAuth sign-in modal
+│   ├── AuthModal.css         # Modal styling
+│   ├── AuthPrompt.tsx        # Smart auth prompting
+│   ├── ConnectionStatus.tsx  # Network status indicator
+│   ├── FilterButtons.tsx     # Filter controls and counters
+│   ├── TodoInput.tsx         # Input form for adding new todos
+│   ├── TodoItem.tsx          # Individual todo item with edit/delete
+│   ├── TodoList.tsx          # List container for all todos
+│   ├── UserProfile.tsx       # User profile dropdown
+│   ├── UserProfile.css       # Profile styling
+│   └── __tests__/            # Component tests
+├── services/
+│   ├── authService.ts        # Authentication service
+│   ├── deviceService.ts      # Device identification
+│   ├── migrationService.ts   # Data migration utilities
+│   ├── offlineQueueService.ts # Offline sync queue
+│   ├── supabaseService.ts    # Supabase integration
+│   └── __tests__/            # Service tests
+├── types/
+│   ├── auth.ts               # Authentication types
+│   └── types.ts              # Core application types
 ├── utils/
-│   └── localStorage.ts    # localStorage utility functions
-├── types.ts               # TypeScript type definitions
-├── App.tsx               # Main application component
-├── App.css               # Application styles
-└── index.tsx             # Application entry point
+│   ├── env.ts                # Environment utilities
+│   └── localStorage.ts       # localStorage utility functions
+├── config/
+│   └── supabase.ts           # Supabase client configuration
+├── App.tsx                   # Main application component
+├── App.css                   # Application styles
+└── index.tsx                 # Application entry point
 ```
 
-## Data Structure
+## 🗄 Data Structure
 
-Each todo item follows this TypeScript interface:
-
+### Todo Interface
 ```typescript
 interface Todo {
   id: string;           // Unique identifier
   text: string;         // Todo description
   completed: boolean;   // Completion status
   createdAt: Date;     // Creation timestamp
+  userId?: string;     // User ID (when authenticated)
+  deviceId?: string;   // Device ID (for anonymous users)
 }
 ```
 
-## Getting Started
+### User Profile Interface
+```typescript
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name?: string;
+  avatar_url?: string;
+  provider: 'google' | 'github';
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js (version 14 or higher)
+- Node.js (version 16 or higher)
 - npm or yarn package manager
+- Docker (optional, for containerized deployment)
+- Supabase account (for authentication and sync features)
 
-### Installation
+### Quick Start (Local Development)
 
 1. **Clone the repository**
    ```bash
@@ -81,13 +149,97 @@ interface Todo {
    npm install
    ```
 
-3. **Start the development server**
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env.local
+   ```
+   
+   Edit `.env.local` with your Supabase credentials:
+   ```env
+   REACT_APP_SUPABASE_URL=your-supabase-project-url
+   REACT_APP_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
+
+4. **Start the development server**
    ```bash
    npm start
    ```
 
-4. **Open your browser**
+5. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
+
+### Docker Deployment
+
+#### Production Deployment
+```bash
+# Build and run production container
+docker-compose up -d todo-app
+
+# Access at http://localhost:3000
+```
+
+#### Development with Docker
+```bash
+# Run development container with hot reload
+docker-compose --profile dev up todo-app-dev
+
+# Access at http://localhost:3001
+```
+
+### Supabase Setup
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com)
+
+2. **Configure OAuth providers**:
+   - Enable Google OAuth in Authentication > Providers
+   - Enable GitHub OAuth in Authentication > Providers
+   - Set redirect URLs to: `https://[project-ref].supabase.co/auth/v1/callback`
+
+3. **Run database migrations**:
+   Execute the SQL from `plans/database_migration.sql` in your Supabase SQL editor
+
+4. **Get your credentials**:
+   - Project URL: Settings > API > Project URL
+   - Anon Key: Settings > API > Project API keys > anon public
+
+## 📱 Usage Guide
+
+### Getting Started
+1. **Anonymous Usage**: Start using immediately - no account required
+2. **Smart Prompting**: After creating 3 todos, you'll see an optional sign-up prompt
+3. **Easy Authentication**: Choose Google or GitHub to create your account
+4. **Automatic Migration**: Your existing todos will be saved to your account
+
+### Managing Todos
+- **Add**: Type in the input field and press Enter or click "Add Todo"
+- **Complete**: Click the checkbox next to any todo
+- **Edit**: Double-click the todo text or click the "Edit" button
+- **Delete**: Click the "Delete" button to remove a todo
+- **Filter**: Use the filter buttons to view All, Active, or Completed todos
+
+### User Account
+- **Profile**: Click your avatar in the top-right to see profile info
+- **Sign Out**: Use the dropdown menu to sign out
+- **Sync**: Your todos automatically sync across all your devices
+
+### Keyboard Shortcuts
+- **Enter**: Save new todo or confirm edit
+- **Escape**: Cancel editing mode
+- **Double-click**: Start editing a todo
+
+## 🐳 Docker Configuration
+
+### Production Container
+- **Base Image**: Node.js Alpine for minimal size
+- **Web Server**: Nginx for optimal performance
+- **Port**: Exposed on port 80 (mapped to 3000)
+- **Environment**: Production optimized build
+
+### Development Container
+- **Hot Reload**: Live code changes without restart
+- **Volume Mounting**: Source code mounted for development
+- **Port**: Exposed on port 3000 (mapped to 3001)
+- **Environment**: Development mode with debugging
 
 ### Available Scripts
 
@@ -96,24 +248,27 @@ interface Todo {
 - `npm run build` - Builds the app for production
 - `npm run eject` - Ejects from Create React App (irreversible)
 
-## Usage Guide
+## 🧪 Testing
 
-### Adding Todos
-1. Type your task in the "What needs to be done?" input field
-2. Click "Add Todo" or press Enter to save
+### Running Tests
+```bash
+# Run all tests
+npm test
 
-### Managing Todos
-- **Complete**: Click the checkbox next to any todo
-- **Edit**: Double-click the todo text or click the "Edit" button
-- **Delete**: Click the "Delete" button to remove a todo
-- **Filter**: Use the filter buttons to view All, Active, or Completed todos
+# Run tests with coverage
+npm test -- --coverage
 
-### Keyboard Shortcuts
-- **Enter**: Save new todo or confirm edit
-- **Escape**: Cancel editing mode
-- **Double-click**: Start editing a todo
+# Run specific test file
+npm test -- AuthService.test.ts
+```
 
-## Browser Compatibility
+### Test Coverage
+- **Services**: Authentication, data migration, offline sync
+- **Components**: User interface components and interactions
+- **Integration**: End-to-end user workflows
+- **Utilities**: Helper functions and data management
+
+## 🌐 Browser Compatibility
 
 - ✅ Chrome (latest)
 - ✅ Firefox (latest)
@@ -121,52 +276,79 @@ interface Todo {
 - ✅ Edge (latest)
 - ✅ Mobile browsers (iOS Safari, Chrome Mobile)
 
-## Local Storage
+## 🔧 Configuration
 
-The app automatically saves all todos to your browser's localStorage, so your data persists between sessions. No server or database required!
+### Environment Variables
+```env
+# Required for authentication and sync
+REACT_APP_SUPABASE_URL=your-project-url
+REACT_APP_SUPABASE_ANON_KEY=your-anon-key
+
+# Optional - defaults to current domain + /auth/callback
+REACT_APP_REDIRECT_URL=http://localhost:3000/auth/callback
+```
 
 ### Storage Features
-- **Automatic Persistence**: Todos are saved immediately when created, edited, or deleted
+- **Automatic Persistence**: Todos saved immediately when created, edited, or deleted
 - **Quota Management**: Handles localStorage quota exceeded errors gracefully
 - **Data Recovery**: Attempts to free space by clearing non-essential data
 - **Fallback Protection**: Keeps the 50 most recent todos if storage is critically low
-- **Error Notifications**: User-friendly alerts when storage issues occur
+- **Cloud Sync**: Authenticated users get real-time sync across devices
 
-### Storage Limitations
-- Most browsers provide 5-10MB of localStorage space
-- The app monitors storage usage and provides warnings
-- Automatic cleanup helps maintain optimal performance
-- Users are notified if manual cleanup is needed
-
-## Responsive Design
-
-The app is fully responsive and works great on:
-- 📱 Mobile phones (320px and up)
-- 📱 Tablets (768px and up)
-- 💻 Desktop computers (1024px and up)
-
-## Customization
+## 🎨 Customization
 
 ### Styling
-All styles are contained in `src/App.css`. Key CSS custom properties:
-- Primary gradient: `linear-gradient(135deg, #667eea 0%, #764ba2 100%)`
-- Border radius: `8px` for components, `12px` for main container
-- Transition duration: `0.2s ease` for smooth animations
+All styles are contained in component-specific CSS files:
+- **Primary gradient**: `linear-gradient(135deg, #667eea 0%, #764ba2 100%)`
+- **Border radius**: `8px` for components, `12px` for main container
+- **Transition duration**: `0.2s ease` for smooth animations
 
 ### Adding Features
-The modular component structure makes it easy to add new features:
-- Add new filter types in `types.ts`
+The modular architecture makes it easy to extend:
+- Add new OAuth providers in `authService.ts`
+- Create new filter types in `types.ts`
 - Extend the Todo interface for additional properties
-- Create new components in the `components/` directory
+- Add new components in the `components/` directory
 
-## Performance
+## 📊 Performance
 
-- ⚡ Fast initial load with Create React App optimizations
-- 🔄 Efficient re-renders with React's virtual DOM
-- 💾 Minimal memory usage with localStorage persistence
-- 📦 Small bundle size (~2MB development, ~500KB production)
+- ⚡ **Fast Initial Load**: Optimized React build with code splitting
+- 🔄 **Efficient Re-renders**: React's virtual DOM with proper key usage
+- 💾 **Smart Caching**: localStorage + Supabase caching strategies
+- 📦 **Small Bundle Size**: ~2MB development, ~500KB production
+- 🌐 **CDN Ready**: Static assets optimized for CDN deployment
 
-## Contributing
+## 🔒 Security
+
+### Authentication Security
+- **OAuth 2.0**: Industry-standard authentication flow
+- **JWT Tokens**: Secure, stateless authentication
+- **Auto Refresh**: Automatic token renewal
+- **HTTPS Only**: All authentication traffic encrypted
+
+### Data Security
+- **Row Level Security**: Database-level access control
+- **Device Isolation**: Anonymous data isolated by device
+- **Input Validation**: Client and server-side validation
+- **XSS Protection**: Sanitized user inputs
+
+## 🚀 Deployment
+
+### Production Checklist
+- [ ] Set up Supabase project with OAuth providers
+- [ ] Configure environment variables
+- [ ] Run database migrations
+- [ ] Build Docker image or static files
+- [ ] Configure reverse proxy (if needed)
+- [ ] Set up monitoring and logging
+
+### Deployment Options
+1. **Docker**: Use provided Dockerfile and docker-compose.yml
+2. **Static Hosting**: Build and deploy to Netlify, Vercel, or similar
+3. **Traditional Server**: Build and serve with Nginx or Apache
+4. **Cloud Platforms**: Deploy to AWS, Google Cloud, or Azure
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -174,18 +356,33 @@ The modular component structure makes it easy to add new features:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
+### Development Guidelines
+- Follow TypeScript best practices
+- Write tests for new features
+- Update documentation for changes
+- Use conventional commit messages
+- Ensure Docker builds work
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 - Built with [Create React App](https://create-react-app.dev/)
+- Authentication powered by [Supabase](https://supabase.com/)
 - Inspired by [TodoMVC](http://todomvc.com/)
 - Icons and design patterns from modern web standards
+
+## 📚 Documentation
+
+- **Setup Guide**: `plans/SUPABASE_AUTH_SETUP.md` - Complete setup instructions
+- **Implementation Details**: `plans/SUPABASE_AUTH_IMPLEMENTATION_SUMMARY.md`
+- **Migration Guide**: `plans/MIGRATION_PLAN.md`
+- **Docker Guide**: `DOCKER_README.md`
 
 ---
 
 **Happy organizing! 🎉**
 
-For questions or support, please open an issue in the repository.
+For questions, issues, or feature requests, please open an issue in the repository.
