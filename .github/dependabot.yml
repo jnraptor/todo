@@ -8,10 +8,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 10
-    reviewers:
-      - "@me"
-    assignees:
-      - "@me"
     commit-message:
       prefix: "npm"
       prefix-development: "npm-dev"
@@ -37,10 +33,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "@me"
-    assignees:
-      - "@me"
     commit-message:
       prefix: "docker"
       include: "scope"
@@ -56,10 +48,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "@me"
-    assignees:
-      - "@me"
     commit-message:
       prefix: "github-actions"
       include: "scope"
