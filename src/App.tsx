@@ -143,11 +143,8 @@ function App() {
       const deviceId = DeviceService.getDeviceId();
       const authPromptDismissed = localStorage.getItem(`authPromptDismissed_${deviceId}`);
       
-      console.log('Auth prompt check:', { todoCount, user, authPromptDismissed });
-      
       // Show prompt if: not authenticated, has 3+ todos, and hasn't been dismissed for this device
       if (todoCount >= 3 && !user && !authPromptDismissed) {
-        console.log('Showing auth prompt');
         setShowAuthPrompt(true);
       }
     };
