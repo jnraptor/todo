@@ -14,6 +14,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'x-device-id': DeviceService.getDeviceId()
+      // Note: Real IP headers are handled by nginx/Cloudflare at infrastructure level
+      // Client-side apps cannot access real IP addresses for security reasons
     }
   }
 });
@@ -29,6 +31,8 @@ export const getSupabaseClient = () => {
     global: {
       headers: {
         'x-device-id': DeviceService.hasDeviceId() ? DeviceService.getDeviceId() : ''
+        // Note: Real IP headers are handled by nginx/Cloudflare at infrastructure level
+        // Client-side apps cannot access real IP addresses for security reasons
       }
     }
   });

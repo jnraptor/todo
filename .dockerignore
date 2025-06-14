@@ -42,3 +42,6 @@ plans/
 
 # Logs
 *.log
+
+# Backup files
+backups/
