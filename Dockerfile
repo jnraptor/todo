@@ -14,6 +14,16 @@ RUN npm ci --only=production=false
 # Copy source code
 COPY . .
 
+# Accept build arguments for environment variables
+ARG REACT_APP_SUPABASE_URL
+ARG REACT_APP_SUPABASE_ANON_KEY
+ARG REACT_APP_REDIRECT_URL
+
+# Set environment variables for the build
+ENV REACT_APP_SUPABASE_URL=$REACT_APP_SUPABASE_URL
+ENV REACT_APP_SUPABASE_ANON_KEY=$REACT_APP_SUPABASE_ANON_KEY
+ENV REACT_APP_REDIRECT_URL=$REACT_APP_REDIRECT_URL
+
 # Build the application
 RUN npm run build
 

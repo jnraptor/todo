@@ -171,12 +171,37 @@ interface UserProfile {
 ### Docker Deployment
 
 #### Production Deployment
-```bash
-# Build and run production container
-docker-compose up -d todo-app
 
-# Access at http://localhost:3000
-```
+**Important**: For production builds, environment variables must be provided at **build time**, not runtime, because React creates a static bundle.
+
+1. **Create a `.env` file** in your project root:
+   ```env
+   REACT_APP_SUPABASE_URL=your-supabase-project-url
+   REACT_APP_SUPABASE_ANON_KEY=your-supabase-anon-key
+   REACT_APP_REDIRECT_URL=https://your-domain.com/auth/callback
+   ```
+
+2. **Build and run production container**:
+   ```bash
+   # Docker Compose will automatically use .env file
+   docker-compose up -d todo-app
+   
+   # Access at http://localhost:3000
+   ```
+
+3. **Alternative: Pass environment variables directly**:
+   ```bash
+   # Using environment variables
+   REACT_APP_SUPABASE_URL=your-url \
+   REACT_APP_SUPABASE_ANON_KEY=your-key \
+   docker-compose up -d todo-app
+   
+   # Or using Docker build args
+   docker build \
+     --build-arg REACT_APP_SUPABASE_URL=your-url \
+     --build-arg REACT_APP_SUPABASE_ANON_KEY=your-key \
+     -t todo-app .
+   ```
 
 #### Development with Docker
 ```bash
@@ -287,6 +312,36 @@ REACT_APP_SUPABASE_ANON_KEY=your-anon-key
 # Optional - defaults to current domain + /auth/callback
 REACT_APP_REDIRECT_URL=http://localhost:3000/auth/callback
 ```
+
+### Troubleshooting Environment Variables
+
+#### "supabaseUrl is required" Error
+This error occurs when environment variables are not available during the build process. Here's how to fix it:
+
+1. **For Docker Production Builds**:
+   - Ensure you have a `.env` file in your project root with the required variables
+   - Or pass build arguments when building the Docker image
+   - Environment variables must be available at **build time**, not runtime
+
+2. **For Local Development**:
+   - Create `.env.local` file in your project root
+   - Restart your development server after adding environment variables
+
+3. **For Static Hosting (Netlify, Vercel, etc.)**:
+   - Set environment variables in your hosting platform's dashboard
+   - Ensure variables start with `REACT_APP_` prefix
+   - Redeploy your application after setting variables
+
+4. **Validation**:
+   - The app now includes environment validation on startup
+   - Check browser console for detailed error messages
+   - Missing variables will show a user-friendly error page
+
+#### Common Issues
+- **Variable not found**: Ensure the variable name starts with `REACT_APP_`
+- **Build-time vs Runtime**: React apps need env vars at build time, not runtime
+- **Docker caching**: Use `docker-compose build --no-cache` if variables aren't updating
+- **Case sensitivity**: Environment variable names are case-sensitive
 
 ### Storage Features
 - **Automatic Persistence**: Todos saved immediately when created, edited, or deleted
