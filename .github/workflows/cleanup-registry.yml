@@ -35,4 +35,4 @@ jobs:
         with:
           dry-run: true
           delete-untagged: true
-          keep-n-untagged: ${{ github.event.inputs.keep_count || '3' }}
+          keep-n-tagged: ${{ github.event.inputs.keep_count || '3' }}
