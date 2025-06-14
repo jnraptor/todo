@@ -24,24 +24,44 @@ export class SupabaseService {
   }
   
   static async getTodos(): Promise<Todo[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    let query = supabase.from('todos').select('*');
-    
-    if (user) {
-      // Authenticated: show only user todos
-      query = query.eq('user_id', user.id);
-    } else {
-      // Anonymous: show only unmigrated device todos
-      query = query
-        .eq('device_id', DeviceService.getDeviceId())
-        .is('migrated_to_user_id', null);
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.warn('Auth error when getting todos:', authError);
+        // Continue with anonymous access
+      }
+      
+      let query = supabase.from('todos').select('*');
+      
+      if (user && !authError) {
+        // Authenticated: show only user todos
+        query = query.eq('user_id', user.id);
+      } else {
+        // Anonymous: show only unmigrated device todos
+        const deviceId = DeviceService.getDeviceId();
+        if (!deviceId) {
+          console.warn('No device ID available, returning empty todos');
+          return [];
+        }
+        query = query
+          .eq('device_id', deviceId)
+          .is('migrated_to_user_id', null);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Database error when getting todos:', error);
+        throw error;
+      }
+      
+      return (data || []).map(this.convertToTodo);
+    } catch (error) {
+      console.error('Failed to get todos:', error);
+      // Re-throw to let caller handle it
+      throw error;
     }
-    
-    const { data, error } = await query.order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return (data || []).map(this.convertToTodo);
   }
   
   static async createTodo(text: string): Promise<Todo> {

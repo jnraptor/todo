@@ -28,56 +28,124 @@ function App() {
   const [queueLength, setQueueLength] = useState(0);
   const [user, setUser] = useState<User | null>(null);
 
-  // Initialize auth state
+  // Initialize auth state and app data
   useEffect(() => {
-    const initAuth = async () => {
-      const currentUser = await AuthService.getCurrentUser();
-      setUser(currentUser);
-    };
+    let mounted = true;
+    let authUnsubscribe: (() => void) | null = null;
+    let initializationTimeout: NodeJS.Timeout;
     
-    initAuth();
-    
-    // Subscribe to auth changes
-    const unsubscribe = AuthService.onAuthStateChange((newUser) => {
-      setUser(newUser);
-      // Refresh todos when auth state changes (both sign in and sign out)
-      SupabaseService.getTodos().then(setTodos).catch(error => {
-        console.error('Failed to refresh todos after auth change:', error);
-      });
-    });
-    
-    return unsubscribe;
-  }, []);
-
-  // Initialize and migrate data
-  useEffect(() => {
     const initializeApp = async () => {
       try {
         setSyncStatus('syncing');
         
+        // Set a timeout to prevent infinite loading
+        initializationTimeout = setTimeout(() => {
+          if (mounted) {
+            console.warn('App initialization timed out, forcing completion');
+            setLoading(false);
+            setSyncStatus('error');
+          }
+        }, 10000); // 10 second timeout
+        
+        // First, initialize auth state with timeout
+        const currentUser = await Promise.race([
+          AuthService.getCurrentUser(),
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('Auth initialization timeout')), 5000)
+          )
+        ]);
+        
+        if (mounted) {
+          setUser(currentUser);
+        }
+        
+        // Subscribe to auth changes
+        authUnsubscribe = AuthService.onAuthStateChange(async (newUser) => {
+          if (!mounted) return;
+          
+          setUser(newUser);
+          
+          // Refresh todos when auth state changes (both sign in and sign out)
+          try {
+            const refreshedTodos = await Promise.race([
+              SupabaseService.getTodos(),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Todo refresh timeout')), 5000)
+              )
+            ]);
+            
+            if (mounted) {
+              setTodos(refreshedTodos);
+            }
+          } catch (error) {
+            console.error('Failed to refresh todos after auth change:', error);
+            if (mounted) {
+              setSyncStatus('error');
+            }
+          }
+        });
+        
         // Check for localStorage data to migrate
         await MigrationService.migrateFromLocalStorage();
         
-        // Load todos from Supabase
-        const supabaseTodos = await SupabaseService.getTodos();
-        setTodos(supabaseTodos);
+        // Load todos from Supabase with timeout
+        const supabaseTodos = await Promise.race([
+          SupabaseService.getTodos(),
+          new Promise<Todo[]>((resolve) =>
+            setTimeout(() => {
+              console.warn('Todo loading timed out, returning empty array');
+              resolve([]);
+            }, 5000)
+          )
+        ]);
+        
+        if (mounted) {
+          setTodos(supabaseTodos);
+        }
         
         // Process any offline queue
         if (navigator.onLine) {
-          await OfflineQueueService.processQueue();
-          setQueueLength(OfflineQueueService.getQueueLength());
+          try {
+            await OfflineQueueService.processQueue();
+            if (mounted) {
+              setQueueLength(OfflineQueueService.getQueueLength());
+            }
+          } catch (error) {
+            console.error('Failed to process offline queue:', error);
+          }
         }
         
-        setSyncStatus('synced');
+        if (mounted) {
+          setSyncStatus('synced');
+        }
       } catch (error) {
         console.error('Failed to initialize:', error);
-        setSyncStatus('error');
+        if (mounted) {
+          setSyncStatus('error');
+          // Still show the app even if initialization failed
+          setTodos([]); // Fallback to empty todos
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
+        if (initializationTimeout) {
+          clearTimeout(initializationTimeout);
+        }
       }
     };
     
     initializeApp();
+    
+    return () => {
+      mounted = false;
+      if (authUnsubscribe) {
+        authUnsubscribe();
+      }
+      if (initializationTimeout) {
+        clearTimeout(initializationTimeout);
+      }
+    };
   }, []);
 
   // Set up real-time subscription

@@ -28,10 +28,21 @@ export class AuthService {
   }
   
   static async getCurrentUser(): Promise<User | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    
-    return this.formatUser(user);
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        console.warn('Error getting current user:', error);
+        return null;
+      }
+      
+      if (!user) return null;
+      
+      return this.formatUser(user);
+    } catch (error) {
+      console.error('Failed to get current user:', error);
+      return null;
+    }
   }
   
   static onAuthStateChange(callback: (user: User | null) => void): () => void {
