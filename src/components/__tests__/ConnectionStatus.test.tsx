@@ -84,8 +84,8 @@ describe('ConnectionStatus Component', () => {
     it('should have correct CSS classes for syncing state', () => {
       const { container } = render(<ConnectionStatus isOnline={true} syncStatus="syncing" />);
       
-      const statusElement = container.querySelector('.connection-status');
-      expect(statusElement).toHaveClass('syncing');
+      const notificationElement = container.querySelector('.connection-status-notification');
+      expect(notificationElement).toHaveClass('syncing');
       expect(container.querySelector('.status-icon')).toBeInTheDocument();
     });
 
@@ -189,10 +189,10 @@ describe('ConnectionStatus Component', () => {
       
       // Should not have the old full-width bar classes
       expect(container.querySelector('.connection-status')).not.toBeInTheDocument();
-      expect(container.querySelector('.synced')).not.toBeInTheDocument();
       
       // Should have notification classes instead
       expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status-notification.synced')).toBeInTheDocument();
     });
   });
 
@@ -213,18 +213,19 @@ describe('ConnectionStatus Component', () => {
       expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
       expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
       
-      // Transition to syncing (should switch from notification to full-width bar)
+      // Transition to syncing (should remain as notification but change content)
       rerender(<ConnectionStatus isOnline={true} syncStatus="syncing" queueLength={2} />);
       expect(screen.getByText(/syncing 2 changes/i)).toBeInTheDocument();
       expect(screen.queryByText(/connected and synced/i)).not.toBeInTheDocument();
-      expect(container.querySelector('.connection-status')).toBeInTheDocument();
-      expect(container.querySelector('.connection-status-notification')).not.toBeInTheDocument();
+      expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status-notification.syncing')).toBeInTheDocument();
       
-      // Transition to error (should remain as full-width bar)
+      // Transition to error (should switch to full-width bar)
       rerender(<ConnectionStatus isOnline={true} syncStatus="error" />);
       expect(screen.getByText(/sync error/i)).toBeInTheDocument();
       expect(screen.queryByText(/syncing/i)).not.toBeInTheDocument();
       expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status-notification')).not.toBeInTheDocument();
       
       // Transition to offline (should remain as full-width bar)
       rerender(<ConnectionStatus isOnline={false} syncStatus="error" queueLength={3} />);
@@ -348,7 +349,7 @@ describe('ConnectionStatus Component', () => {
       expect(container.querySelector('.connection-status')).toBeInTheDocument();
       
       rerender(<ConnectionStatus isOnline={true} syncStatus="syncing" />);
-      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
       
       rerender(<ConnectionStatus isOnline={true} syncStatus="error" />);
       expect(container.querySelector('.connection-status')).toBeInTheDocument();
@@ -375,8 +376,9 @@ describe('ConnectionStatus Component', () => {
 
     it('should not apply bar state classes to notification', () => {
       const { container } = render(<ConnectionStatus isOnline={true} syncStatus="synced" />);
-      expect(container.querySelector('.synced')).not.toBeInTheDocument();
       expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status-notification.synced')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).not.toBeInTheDocument();
     });
   });
 
@@ -481,19 +483,19 @@ describe('ConnectionStatus Component', () => {
       expect(container.querySelector('.connection-status')).toBeInTheDocument();
     });
 
-    it('should not hide the status bar for syncing status', () => {
+    it('should not hide the notification for syncing status', () => {
       const { container } = render(<ConnectionStatus isOnline={true} syncStatus="syncing" />);
       
-      // Initially should be visible
+      // Initially should be visible as notification
       expect(screen.getByText(/syncing/i)).toBeInTheDocument();
-      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
       
       // Fast-forward time by 5 seconds - should still be visible
       act(() => {
         jest.advanceTimersByTime(5000);
       });
       expect(screen.getByText(/syncing/i)).toBeInTheDocument();
-      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
     });
 
     it('should not hide the status bar for error status', () => {
@@ -514,11 +516,11 @@ describe('ConnectionStatus Component', () => {
     it('should restart timer when status changes back to synced', () => {
       const { container, rerender } = render(<ConnectionStatus isOnline={true} syncStatus="syncing" />);
       
-      // Initially syncing - should be visible as full-width bar
+      // Initially syncing - should be visible as notification
       expect(screen.getByText(/syncing/i)).toBeInTheDocument();
-      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
       
-      // Change to synced status - should switch to notification
+      // Change to synced status - should remain as notification but change content
       rerender(<ConnectionStatus isOnline={true} syncStatus="synced" />);
       expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
       expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
@@ -681,10 +683,10 @@ describe('ConnectionStatus Component', () => {
       
       rerender(<ConnectionStatus isOnline={true} syncStatus="syncing" />);
       
-      // Syncing should render as full-width bar
-      expect(container.querySelector('.connection-status')).toBeInTheDocument();
-      expect(container.querySelector('.connection-status-notification')).not.toBeInTheDocument();
-      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+      // Syncing should render as notification
+      expect(container.querySelector('.connection-status-notification')).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).not.toBeInTheDocument();
+      expect(screen.getByRole('button')).toBeInTheDocument();
       
       rerender(<ConnectionStatus isOnline={true} syncStatus="error" />);
       
@@ -702,8 +704,8 @@ describe('ConnectionStatus Component', () => {
       
       // Check that it has the notification class and not the bar class
       expect(notification).toHaveClass('connection-status-notification');
+      expect(notification).toHaveClass('synced');
       expect(notification).not.toHaveClass('connection-status');
-      expect(notification).not.toHaveClass('synced');
     });
   });
 });
