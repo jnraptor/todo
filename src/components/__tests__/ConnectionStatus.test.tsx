@@ -365,16 +365,25 @@ describe('ConnectionStatus Component', () => {
       // Initially should be visible
       expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
       expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      expect(container.querySelector('.slide-out')).not.toBeInTheDocument();
       
       // Fast-forward time by 2.5 seconds - should still be visible
       act(() => {
         jest.advanceTimersByTime(2500);
       });
       expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      expect(container.querySelector('.slide-out')).not.toBeInTheDocument();
       
-      // Fast-forward time by another 1 second (total 3.5 seconds) - should be hidden
+      // Fast-forward time by another 0.5 seconds (total 3 seconds) - should start animating out
       act(() => {
-        jest.advanceTimersByTime(1000);
+        jest.advanceTimersByTime(500);
+      });
+      expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      expect(container.querySelector('.slide-out')).toBeInTheDocument();
+      
+      // Fast-forward time by another 0.3 seconds (total 3.3 seconds) - should be completely hidden
+      act(() => {
+        jest.advanceTimersByTime(300);
       });
       expect(screen.queryByText(/connected and synced/i)).not.toBeInTheDocument();
       expect(container.querySelector('.connection-status')).not.toBeInTheDocument();
@@ -434,19 +443,69 @@ describe('ConnectionStatus Component', () => {
       // Change to synced status
       rerender(<ConnectionStatus isOnline={true} syncStatus="synced" />);
       expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      expect(container.querySelector('.slide-out')).not.toBeInTheDocument();
       
       // Fast-forward time by 2.5 seconds - should still be visible
       act(() => {
         jest.advanceTimersByTime(2500);
       });
       expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      expect(container.querySelector('.slide-out')).not.toBeInTheDocument();
       
-      // Fast-forward time by another 1 second (total 3.5 seconds) - should be hidden
+      // Fast-forward time by another 0.5 seconds (total 3 seconds) - should start animating out
       act(() => {
-        jest.advanceTimersByTime(1000);
+        jest.advanceTimersByTime(500);
+      });
+      expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      expect(container.querySelector('.slide-out')).toBeInTheDocument();
+      
+      // Fast-forward time by another 0.3 seconds (total 3.3 seconds) - should be completely hidden
+      act(() => {
+        jest.advanceTimersByTime(300);
       });
       expect(screen.queryByText(/connected and synced/i)).not.toBeInTheDocument();
       expect(container.querySelector('.connection-status')).not.toBeInTheDocument();
+    });
+
+    it('should apply slide-out animation class before hiding', () => {
+      const { container } = render(<ConnectionStatus isOnline={true} syncStatus="synced" />);
+      
+      // Initially should be visible without slide-out class
+      expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      expect(container.querySelector('.slide-out')).not.toBeInTheDocument();
+      
+      // Fast-forward to start of animation (3 seconds)
+      act(() => {
+        jest.advanceTimersByTime(3000);
+      });
+      
+      // Should still be visible but with slide-out class
+      expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status.slide-out')).toBeInTheDocument();
+      
+      // Fast-forward through animation (300ms more)
+      act(() => {
+        jest.advanceTimersByTime(300);
+      });
+      
+      // Should be completely hidden
+      expect(screen.queryByText(/connected and synced/i)).not.toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).not.toBeInTheDocument();
+    });
+
+    it('should not apply slide-out class to non-synced statuses', () => {
+      const { container } = render(<ConnectionStatus isOnline={false} syncStatus="synced" />);
+      
+      // Fast-forward past the auto-hide time
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+      
+      // Should still be visible without slide-out class
+      expect(screen.getByText(/offline/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      expect(container.querySelector('.slide-out')).not.toBeInTheDocument();
     });
   });
 });
