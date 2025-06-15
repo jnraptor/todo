@@ -14,14 +14,13 @@ build
 .env.test.local
 .env.production.local
 
-# Testing output (keep test files for test builds)
+# Testing output (but keep test files)
 coverage
 
 # Development files
 .git
 .gitignore
 README.md
-Dockerfile
 .dockerignore
 
 # IDE files

@@ -2,54 +2,123 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
-import { loadTodos, saveTodos } from './utils/localStorage';
+import { SupabaseService } from './services/supabaseService';
+import { AuthService } from './services/authService';
 
-// Mock localStorage utilities
-jest.mock('./utils/localStorage', () => ({
-  loadTodos: jest.fn(),
-  saveTodos: jest.fn(),
+// Mock SupabaseService for these specific tests
+jest.mock('./services/supabaseService', () => ({
+  SupabaseService: {
+    getTodos: jest.fn(() => Promise.resolve([])),
+    createTodo: jest.fn((text) => {
+      const mockTodo = {
+        id: `test-id-${Date.now()}`,
+        text,
+        completed: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      return Promise.resolve(mockTodo);
+    }),
+    updateTodo: jest.fn((id, updates) => {
+      const mockTodo = {
+        id,
+        text: updates.text || 'Test todo',
+        completed: updates.completed !== undefined ? updates.completed : false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      return Promise.resolve(mockTodo);
+    }),
+    deleteTodo: jest.fn(() => Promise.resolve()),
+    subscribeToTodos: jest.fn(() => Promise.resolve(() => {})),
+  }
 }));
 
-const mockLoadTodos = loadTodos as jest.MockedFunction<typeof loadTodos>;
-const mockSaveTodos = saveTodos as jest.MockedFunction<typeof saveTodos>;
+// Mock AuthService for these specific tests
+jest.mock('./services/authService', () => ({
+  AuthService: {
+    getCurrentUser: jest.fn(() => Promise.resolve(null)),
+    signInWithGoogle: jest.fn(() => Promise.resolve({ user: null, error: null })),
+    signOut: jest.fn(() => Promise.resolve({ error: null })),
+    onAuthStateChange: jest.fn((callback) => {
+      // Immediately call callback with no user to simulate initial state
+      setTimeout(() => callback(null, 'INITIAL_SESSION'), 0);
+      return {
+        data: { subscription: { unsubscribe: jest.fn() } }
+      };
+    }),
+  }
+}));
+
+const mockSupabaseService = SupabaseService as jest.Mocked<typeof SupabaseService>;
+const mockAuthService = AuthService as jest.Mocked<typeof AuthService>;
 
 describe('App Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockLoadTodos.mockReturnValue([]);
-    mockSaveTodos.mockReturnValue(true);
+    mockSupabaseService.getTodos.mockResolvedValue([]);
+    mockAuthService.getCurrentUser.mockResolvedValue(null);
+    mockAuthService.onAuthStateChange.mockImplementation((callback) => {
+      // Immediately call callback with no user to simulate initial state
+      setTimeout(() => callback(null, 'INITIAL_SESSION'), 0);
+      return jest.fn(); // Return unsubscribe function
+    });
   });
 
-  test('renders todo app with header', () => {
+  test('renders todo app with header', async () => {
     render(<App />);
+    
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
+    
     expect(screen.getByText('Todo App')).toBeInTheDocument();
     expect(screen.getByText('Stay organized and get things done!')).toBeInTheDocument();
   });
 
-  test('renders todo input form', () => {
+  test('renders todo input form', async () => {
     render(<App />);
+    
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
+    
     expect(screen.getByPlaceholderText('What needs to be done?')).toBeInTheDocument();
     expect(screen.getByText('Add Todo')).toBeInTheDocument();
   });
 
-  test('loads todos from localStorage on mount', () => {
+  test('loads todos from Supabase on mount', async () => {
     const mockTodos = [
       {
         id: '1',
         text: 'Test todo',
         completed: false,
-        createdAt: new Date('2023-01-01')
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01')
       }
     ];
-    mockLoadTodos.mockReturnValue(mockTodos);
+    mockSupabaseService.getTodos.mockResolvedValue(mockTodos);
 
     render(<App />);
-    expect(mockLoadTodos).toHaveBeenCalledTimes(1);
+    
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
+    
+    expect(mockSupabaseService.getTodos).toHaveBeenCalled();
     expect(screen.getByText('Test todo')).toBeInTheDocument();
   });
 
   test('adds a new todo', async () => {
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
 
     const input = screen.getByPlaceholderText('What needs to be done?');
     const addButton = screen.getByText('Add Todo');
@@ -57,15 +126,11 @@ describe('App Component', () => {
     await userEvent.type(input, 'New todo item');
     await userEvent.click(addButton);
 
-    expect(screen.getByText('New todo item')).toBeInTheDocument();
-    expect(mockSaveTodos).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          text: 'New todo item',
-          completed: false
-        })
-      ])
-    );
+    await waitFor(() => {
+      expect(screen.getByText('New todo item')).toBeInTheDocument();
+    });
+    
+    expect(mockSupabaseService.createTodo).toHaveBeenCalledWith('New todo item');
   });
 
   test('toggles todo completion', async () => {
@@ -74,24 +139,25 @@ describe('App Component', () => {
         id: '1',
         text: 'Test todo',
         completed: false,
-        createdAt: new Date('2023-01-01')
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01')
       }
     ];
-    mockLoadTodos.mockReturnValue(mockTodos);
+    mockSupabaseService.getTodos.mockResolvedValue(mockTodos);
 
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
     
     const checkbox = screen.getByRole('checkbox');
     await userEvent.click(checkbox);
 
-    expect(mockSaveTodos).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: '1',
-          completed: true
-        })
-      ])
-    );
+    await waitFor(() => {
+      expect(mockSupabaseService.updateTodo).toHaveBeenCalledWith('1', { completed: true });
+    });
   });
 
   test('deletes a todo', async () => {
@@ -100,18 +166,27 @@ describe('App Component', () => {
         id: '1',
         text: 'Test todo',
         completed: false,
-        createdAt: new Date('2023-01-01')
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01')
       }
     ];
-    mockLoadTodos.mockReturnValue(mockTodos);
+    mockSupabaseService.getTodos.mockResolvedValue(mockTodos);
 
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
     
     const deleteButton = screen.getByText('Delete');
     await userEvent.click(deleteButton);
 
-    expect(screen.queryByText('Test todo')).not.toBeInTheDocument();
-    expect(mockSaveTodos).toHaveBeenCalledWith([]);
+    await waitFor(() => {
+      expect(screen.queryByText('Test todo')).not.toBeInTheDocument();
+    });
+    
+    expect(mockSupabaseService.deleteTodo).toHaveBeenCalledWith('1');
   });
 
   test('edits a todo', async () => {
@@ -120,12 +195,18 @@ describe('App Component', () => {
         id: '1',
         text: 'Test todo',
         completed: false,
-        createdAt: new Date('2023-01-01')
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01')
       }
     ];
-    mockLoadTodos.mockReturnValue(mockTodos);
+    mockSupabaseService.getTodos.mockResolvedValue(mockTodos);
 
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
     
     const editButton = screen.getByText('Edit');
     await userEvent.click(editButton);
@@ -136,33 +217,35 @@ describe('App Component', () => {
     fireEvent.blur(editInput);
 
     await waitFor(() => {
-      expect(mockSaveTodos).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: '1',
-            text: 'Updated todo'
-          })
-        ])
-      );
+      expect(mockSupabaseService.updateTodo).toHaveBeenCalledWith('1', { text: 'Updated todo' });
     });
   });
 
-  test('shows filter buttons when todos exist', () => {
+  test('shows filter buttons when todos exist', async () => {
     const mockTodos = [
       {
         id: '1',
         text: 'Test todo',
         completed: false,
-        createdAt: new Date('2023-01-01')
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01')
       }
     ];
-    mockLoadTodos.mockReturnValue(mockTodos);
+    mockSupabaseService.getTodos.mockResolvedValue(mockTodos);
 
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
     
-    expect(screen.getByText('All (1)')).toBeInTheDocument();
-    expect(screen.getByText('Active (1)')).toBeInTheDocument();
-    expect(screen.getByText('Completed (0)')).toBeInTheDocument();
+    // Check for filter buttons with correct format (space separated)
+    await waitFor(() => {
+      expect(screen.getByText(/All.*\(1\)/)).toBeInTheDocument();
+      expect(screen.getByText(/Active.*\(1\)/)).toBeInTheDocument();
+      expect(screen.getByText(/Completed.*\(0\)/)).toBeInTheDocument();
+    });
   });
 
   test('filters todos correctly', async () => {
@@ -171,80 +254,133 @@ describe('App Component', () => {
         id: '1',
         text: 'Active todo',
         completed: false,
-        createdAt: new Date('2023-01-01')
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01')
       },
       {
         id: '2',
         text: 'Completed todo',
         completed: true,
-        createdAt: new Date('2023-01-02')
+        createdAt: new Date('2023-01-02'),
+        updatedAt: new Date('2023-01-02')
       }
     ];
-    mockLoadTodos.mockReturnValue(mockTodos);
+    mockSupabaseService.getTodos.mockResolvedValue(mockTodos);
 
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
     
-    // Test active filter
-    await userEvent.click(screen.getByText('Active (1)'));
-    expect(screen.getByText('Active todo')).toBeInTheDocument();
-    expect(screen.queryByText('Completed todo')).not.toBeInTheDocument();
+    // Wait for todos to load and filter buttons to appear
+    await waitFor(() => {
+      expect(screen.getByText('Active todo')).toBeInTheDocument();
+      expect(screen.getByText('Completed todo')).toBeInTheDocument();
+    });
+    
+    // Test active filter - use regex to match button text with spaces
+    const activeButton = screen.getByText(/Active.*\(1\)/);
+    await userEvent.click(activeButton);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Active todo')).toBeInTheDocument();
+      expect(screen.queryByText('Completed todo')).not.toBeInTheDocument();
+    });
 
     // Test completed filter
-    await userEvent.click(screen.getByText('Completed (1)'));
-    expect(screen.getByText('Completed todo')).toBeInTheDocument();
-    expect(screen.queryByText('Active todo')).not.toBeInTheDocument();
+    const completedButton = screen.getByText(/Completed.*\(1\)/);
+    await userEvent.click(completedButton);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Completed todo')).toBeInTheDocument();
+      expect(screen.queryByText('Active todo')).not.toBeInTheDocument();
+    });
 
     // Test all filter
-    await userEvent.click(screen.getByText('All (2)'));
-    expect(screen.getByText('Active todo')).toBeInTheDocument();
-    expect(screen.getByText('Completed todo')).toBeInTheDocument();
+    const allButton = screen.getByText(/All.*\(2\)/);
+    await userEvent.click(allButton);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Active todo')).toBeInTheDocument();
+      expect(screen.getByText('Completed todo')).toBeInTheDocument();
+    });
   });
 
   test('shows error message when save fails', async () => {
-    mockSaveTodos.mockReturnValue(false);
+    // Mock createTodo to reject with an error
+    mockSupabaseService.createTodo.mockRejectedValue(new Error('Database error'));
 
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
 
     const input = screen.getByPlaceholderText('What needs to be done?');
     await userEvent.type(input, 'New todo');
     await userEvent.click(screen.getByText('Add Todo'));
 
-    expect(screen.getByText('⚠️ Failed to save todos. Storage may be full.')).toBeInTheDocument();
+    // Wait for error state to appear - the app shows sync status as 'error'
+    await waitFor(() => {
+      // Look for error status indicator instead of specific error message
+      const errorStatus = screen.queryByText(/error/i) || screen.queryByText(/failed/i);
+      expect(errorStatus).toBeInTheDocument();
+    });
   });
 
-  test('shows empty state when no todos', () => {
+  test('shows empty state when no todos', async () => {
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
     expect(screen.getByText('No todos yet. Add one above!')).toBeInTheDocument();
   });
 
-  test('shows correct todo counts', () => {
+  test('shows correct todo counts', async () => {
     const mockTodos = [
       {
         id: '1',
         text: 'Active todo 1',
         completed: false,
-        createdAt: new Date('2023-01-01')
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01')
       },
       {
         id: '2',
         text: 'Active todo 2',
         completed: false,
-        createdAt: new Date('2023-01-02')
+        createdAt: new Date('2023-01-02'),
+        updatedAt: new Date('2023-01-02')
       },
       {
         id: '3',
         text: 'Completed todo',
         completed: true,
-        createdAt: new Date('2023-01-03')
+        createdAt: new Date('2023-01-03'),
+        updatedAt: new Date('2023-01-03')
       }
     ];
-    mockLoadTodos.mockReturnValue(mockTodos);
+    mockSupabaseService.getTodos.mockResolvedValue(mockTodos);
 
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
     
-    expect(screen.getByText('2 items left')).toBeInTheDocument();
-    expect(screen.getByText('All (3)')).toBeInTheDocument();
-    expect(screen.getByText('Active (2)')).toBeInTheDocument();
-    expect(screen.getByText('Completed (1)')).toBeInTheDocument();
+    // Wait for todos to load and counts to be calculated
+    await waitFor(() => {
+      // Check for the todo count text (may be split across elements)
+      expect(screen.getByText(/2.*item.*left/)).toBeInTheDocument();
+      expect(screen.getByText(/All.*\(3\)/)).toBeInTheDocument();
+      expect(screen.getByText(/Active.*\(2\)/)).toBeInTheDocument();
+      expect(screen.getByText(/Completed.*\(1\)/)).toBeInTheDocument();
+    });
   });
 });

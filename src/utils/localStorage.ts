@@ -81,9 +81,15 @@ const clearOldData = (): void => {
 // Function to get localStorage usage info
 export const getStorageInfo = (): { used: number; available: number; percentage: number } => {
   let used = 0;
-  for (let key in localStorage) {
-    if (localStorage.hasOwnProperty(key)) {
-      used += localStorage[key].length + key.length;
+  
+  // Use localStorage.length and localStorage.key() for better compatibility
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key) {
+      const value = localStorage.getItem(key);
+      if (value) {
+        used += key.length + value.length;
+      }
     }
   }
   

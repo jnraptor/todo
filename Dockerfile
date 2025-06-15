@@ -1,5 +1,29 @@
 # Multi-stage build for React TypeScript application
-# Stage 1: Build the application
+# Stage 1: Install dependencies and run tests
+FROM node:24-alpine AS test
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies for testing)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Set test environment variables
+ENV REACT_APP_SUPABASE_URL=https://test.supabase.co
+ENV REACT_APP_SUPABASE_ANON_KEY=test-anon-key
+ENV REACT_APP_REDIRECT_URL=http://localhost:3000
+ENV CI=true
+
+# Run tests with coverage
+RUN npm test -- --coverage --watchAll=false --passWithNoTests
+
+# Stage 2: Build the application
 FROM node:24-alpine AS builder
 
 # Set working directory
@@ -27,7 +51,7 @@ ENV REACT_APP_REDIRECT_URL=$REACT_APP_REDIRECT_URL
 # Build the application
 RUN npm run build
 
-# Stage 2: Serve the application with nginx
+# Stage 3: Serve the application with nginx
 FROM nginx:alpine AS production
 
 # Copy built application from builder stage

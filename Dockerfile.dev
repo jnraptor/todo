@@ -13,8 +13,19 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Set development environment variables
+ENV REACT_APP_SUPABASE_URL=https://test.supabase.co
+ENV REACT_APP_SUPABASE_ANON_KEY=test-anon-key
+ENV REACT_APP_REDIRECT_URL=http://localhost:3000
+
 # Expose port 3000
 EXPOSE 3000
 
-# Start development server
+# Default command starts development server
+# Override with docker run command to run tests instead
 CMD ["npm", "start"]
+
+# Alternative commands you can use:
+# For running tests: docker run <image> npm test
+# For running tests with coverage: docker run <image> npm test -- --coverage --watchAll=false
+# For running tests in CI mode: docker run <image> npm test -- --coverage --watchAll=false --passWithNoTests

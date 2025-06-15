@@ -34,3 +34,34 @@ services:
     container_name: todo-app-dev
     profiles:
       - dev
+
+  # Test service - runs tests and exits
+  todo-app-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./test-results:/app/test-results
+      - ./coverage:/app/coverage
+    environment:
+      - CI=true
+      - NODE_ENV=test
+    container_name: todo-app-test
+    profiles:
+      - test
+
+  # Test service using main Dockerfile test stage
+  todo-app-test-main:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    volumes:
+      - ./test-results:/app/test-results
+      - ./coverage:/app/coverage
+    environment:
+      - CI=true
+      - NODE_ENV=test
+    container_name: todo-app-test-main
+    profiles:
+      - test

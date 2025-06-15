@@ -62,6 +62,8 @@ A modern, full-stack todo application built with React, TypeScript, and Supabase
 - **Framework**: Jest with React Testing Library
 - **Coverage**: Unit tests for services and components
 - **Integration**: End-to-end user flow testing
+- **Docker Testing**: Multiple Docker-based test environments
+- **CI/CD Ready**: Automated testing in containers
 
 ## 📁 Project Structure
 
@@ -210,6 +212,97 @@ docker-compose --profile dev up todo-app-dev
 
 # Access at http://localhost:3001
 ```
+
+## 🧪 Testing
+
+This project includes comprehensive testing with multiple Docker-based approaches for different environments.
+
+### Local Testing
+```bash
+# Run tests locally
+npm test
+
+# Run tests with coverage
+npm test -- --coverage
+
+# Run tests in CI mode (non-interactive)
+npm test -- --watchAll=false --coverage
+```
+
+### Docker Testing
+
+#### Quick Test Commands
+```bash
+# Using the test script (recommended)
+./scripts/test-docker.sh test-main      # Main Dockerfile test stage
+./scripts/test-docker.sh test-dedicated # Dedicated test Dockerfile
+./scripts/test-docker.sh coverage       # Run tests and save coverage
+./scripts/test-docker.sh ci             # CI mode with proper exit codes
+
+# Direct Docker commands
+docker build --target test -t todo-app-test .
+docker run --rm todo-app-test
+
+# Using docker-compose
+docker-compose --profile test up todo-app-test
+```
+
+#### Test Environments
+
+1. **Main Dockerfile Test Stage** (Recommended for CI/CD)
+   - Runs tests before building production image
+   - Fails the build if tests fail
+   - Best for ensuring code quality
+
+2. **Dedicated Test Dockerfile**
+   - Optimized specifically for testing
+   - Smaller image size
+   - Good for development testing
+
+3. **Docker Compose**
+   - Easy orchestration
+   - Volume mounts for coverage reports
+   - Good for local development
+
+#### Coverage Reports
+
+Tests generate coverage reports in multiple formats:
+- **Console**: Immediate feedback during test runs
+- **LCOV**: For CI/CD integration (`coverage/lcov.info`)
+- **HTML**: Detailed browsable reports (`coverage/lcov-report/index.html`)
+
+```bash
+# Generate and view coverage
+./scripts/test-docker.sh coverage
+open coverage/lcov-report/index.html
+```
+
+#### CI/CD Integration
+
+The Docker test setup is designed for CI/CD pipelines:
+
+```yaml
+# GitHub Actions example
+- name: Run tests
+  run: |
+    docker build --target test -t todo-app-test .
+    docker run --rm -v ${{ github.workspace }}/coverage:/app/coverage todo-app-test
+
+# GitLab CI example
+test:
+  script:
+    - docker build --target test -t todo-app-test .
+    - docker run --rm -v $(pwd)/coverage:/app/coverage todo-app-test
+```
+
+### Test Structure
+
+- **Unit Tests**: Individual component and service testing
+- **Integration Tests**: Full user flow testing
+- **Coverage**: Comprehensive code coverage reporting
+- **Mocking**: Proper mocking of external dependencies
+
+For detailed testing documentation, see [DOCKER_TEST_README.md](DOCKER_TEST_README.md).
 
 ### Supabase Setup
 

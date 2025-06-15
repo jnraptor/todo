@@ -1,39 +1,6 @@
 import { loadTodos, saveTodos, getStorageInfo } from '../localStorage';
 import { Todo } from '../../types';
 
-// Create a proper localStorage mock that actually stores data
-const createLocalStorageMock = () => {
-  let store: Record<string, string> = {};
-
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value;
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-    key: (index: number) => {
-      const keys = Object.keys(store);
-      return keys[index] || null;
-    },
-    get length() {
-      return Object.keys(store).length;
-    },
-    hasOwnProperty: (key: string) => key in store
-  };
-};
-
-// Mock localStorage for this test file
-const mockLocalStorage = createLocalStorageMock();
-Object.defineProperty(global, 'localStorage', {
-  value: mockLocalStorage,
-  writable: true
-});
-
 // Mock console methods
 const consoleSpy = {
   error: jest.spyOn(console, 'error').mockImplementation(() => {}),
@@ -45,7 +12,8 @@ const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
 
 describe('localStorage utilities', () => {
   beforeEach(() => {
-    mockLocalStorage.clear();
+    // Clear localStorage before each test
+    localStorage.clear();
     jest.clearAllMocks();
   });
 
@@ -77,9 +45,15 @@ describe('localStorage utilities', () => {
         }
       ];
 
-      mockLocalStorage.setItem('todos', JSON.stringify(mockTodos));
+      // Debug: Check if localStorage is working
+      localStorage.setItem('todos', JSON.stringify(mockTodos));
+      console.log('Set item result:', localStorage.getItem('todos'));
+      console.log('localStorage length:', localStorage.length);
 
       const result = loadTodos();
+      
+      // Debug: Log the actual result
+      console.log('loadTodos result:', result);
       
       expect(result).toHaveLength(2);
       expect(result[0].id).toBe('1');
@@ -97,16 +71,17 @@ describe('localStorage utilities', () => {
         createdAt: '2023-01-01T00:00:00.000Z'
       };
 
-      mockLocalStorage.setItem('todos', JSON.stringify([todoWithStringDate]));
+      localStorage.setItem('todos', JSON.stringify([todoWithStringDate]));
 
       const result = loadTodos();
       
+      expect(result).toHaveLength(1);
       expect(result[0].createdAt).toBeInstanceOf(Date);
       expect(result[0].createdAt.toISOString()).toBe('2023-01-01T00:00:00.000Z');
     });
 
     test('returns empty array and logs error when JSON parsing fails', () => {
-      mockLocalStorage.setItem('todos', 'invalid json');
+      localStorage.setItem('todos', 'invalid json');
 
       const result = loadTodos();
       
@@ -118,8 +93,8 @@ describe('localStorage utilities', () => {
     });
 
     test('returns empty array and logs error when localStorage throws', () => {
-      const originalGetItem = mockLocalStorage.getItem;
-      mockLocalStorage.getItem = jest.fn(() => {
+      // Use jest.spyOn to mock getItem
+      const getItemSpy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
         throw new Error('localStorage error');
       });
 
@@ -130,6 +105,9 @@ describe('localStorage utilities', () => {
         'Error loading todos from localStorage:',
         expect.any(Error)
       );
+
+      // Restore the spy
+      getItemSpy.mockRestore();
     });
   });
 
@@ -147,12 +125,20 @@ describe('localStorage utilities', () => {
       const result = saveTodos(mockTodos);
 
       expect(result).toBe(true);
-      // Test passes if no error is thrown
+      
+      // Check if data was actually saved
+      const savedData = localStorage.getItem('todos');
+      expect(savedData).toBeTruthy();
+      
+      // Verify the saved data
+      const parsedData = JSON.parse(savedData || '[]');
+      expect(parsedData).toHaveLength(1);
+      expect(parsedData[0].id).toBe('1');
     });
 
     test('returns false and logs error when localStorage.setItem throws', () => {
-      const originalSetItem = mockLocalStorage.setItem;
-      mockLocalStorage.setItem = jest.fn(() => {
+      // Use jest.spyOn to mock setItem
+      const setItemSpy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
         throw new Error('Generic error');
       });
 
@@ -163,6 +149,9 @@ describe('localStorage utilities', () => {
         'Error saving todos to localStorage:',
         expect.any(Error)
       );
+
+      // Restore the spy
+      setItemSpy.mockRestore();
     });
 
     test('handles QuotaExceededError by clearing old data', () => {
@@ -170,8 +159,7 @@ describe('localStorage utilities', () => {
       Object.defineProperty(quotaError, 'code', { value: 22 });
 
       let callCount = 0;
-      const originalSetItem = mockLocalStorage.setItem;
-      mockLocalStorage.setItem = jest.fn(() => {
+      const setItemSpy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
           throw quotaError;
@@ -194,15 +182,16 @@ describe('localStorage utilities', () => {
       expect(consoleSpy.warn).toHaveBeenCalledWith(
         'localStorage quota exceeded. Attempting to free space...'
       );
-      // Test passes if retry succeeds
+
+      // Restore the spy
+      setItemSpy.mockRestore();
     });
 
     test('handles QuotaExceededError when retry also fails', () => {
       const quotaError = new DOMException('QuotaExceededError', 'QuotaExceededError');
       Object.defineProperty(quotaError, 'code', { value: 22 });
 
-      const originalSetItem = mockLocalStorage.setItem;
-      mockLocalStorage.setItem = jest.fn(() => {
+      const setItemSpy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
         throw quotaError;
       });
 
@@ -216,6 +205,9 @@ describe('localStorage utilities', () => {
         'Failed to save todos even after clearing old data:',
         expect.any(DOMException)
       );
+
+      // Restore the spy
+      setItemSpy.mockRestore();
     });
 
     test('handles QuotaExceededError by name property', () => {
@@ -223,8 +215,7 @@ describe('localStorage utilities', () => {
       Object.defineProperty(quotaError, 'name', { value: 'QuotaExceededError' });
 
       let callCount = 0;
-      const originalSetItem = mockLocalStorage.setItem;
-      mockLocalStorage.setItem = jest.fn(() => {
+      const setItemSpy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
           throw quotaError;
@@ -238,41 +229,57 @@ describe('localStorage utilities', () => {
       expect(consoleSpy.warn).toHaveBeenCalledWith(
         'localStorage quota exceeded. Attempting to free space...'
       );
+
+      // Restore the spy
+      setItemSpy.mockRestore();
     });
 
     test('clears old data correctly when quota exceeded', () => {
       // Set up some existing data
-      mockLocalStorage.setItem('todos', JSON.stringify([]));
-      mockLocalStorage.setItem('old-data-1', 'some data');
-      mockLocalStorage.setItem('old-data-2', 'more data');
-      mockLocalStorage.setItem('react-dev-tools', 'should not be removed');
+      localStorage.setItem('todos', JSON.stringify([]));
+      localStorage.setItem('old-data-1', 'some data');
+      localStorage.setItem('old-data-2', 'more data');
+      localStorage.setItem('react-dev-tools', 'should not be removed');
 
       const quotaError = new DOMException('QuotaExceededError', 'QuotaExceededError');
       Object.defineProperty(quotaError, 'code', { value: 22 });
 
       let callCount = 0;
-      const originalSetItem = mockLocalStorage.setItem;
-      mockLocalStorage.setItem = jest.fn(() => {
+      const setItemSpy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => {
         callCount++;
         if (callCount === 1) {
           throw quotaError;
         }
-        // Success on retry
+        // Success on retry - restore and call original
+        setItemSpy.mockRestore();
+        localStorage.setItem(key, value);
       });
 
       const result = saveTodos([]);
 
       expect(result).toBe(true);
-      // Test passes if no error is thrown
+
+      // Clean up if spy is still active
+      if (setItemSpy.mockRestore) {
+        setItemSpy.mockRestore();
+      }
     });
   });
 
   describe('getStorageInfo', () => {
     test('calculates storage usage correctly', () => {
-      mockLocalStorage.setItem('key1', 'value1'); // 4 + 6 = 10 chars
-      mockLocalStorage.setItem('key2', 'value2'); // 4 + 6 = 10 chars
+      localStorage.setItem('key1', 'value1'); // 4 + 6 = 10 chars
+      localStorage.setItem('key2', 'value2'); // 4 + 6 = 10 chars
+
+      // Debug: Check localStorage state
+      console.log('localStorage.length:', localStorage.length);
+      console.log('localStorage.key(0):', localStorage.key(0));
+      console.log('localStorage.key(1):', localStorage.key(1));
 
       const result = getStorageInfo();
+
+      // Debug: Log the actual result
+      console.log('getStorageInfo result:', result);
 
       expect(result.used).toBe(20); // 10 + 10
       expect(result.available).toBe(5 * 1024 * 1024 - 20); // 5MB - 20 chars
@@ -282,7 +289,7 @@ describe('localStorage utilities', () => {
     test('calculates percentage correctly', () => {
       // Create a large string to simulate significant storage usage
       const largeValue = 'x'.repeat(1024 * 1024); // 1MB
-      mockLocalStorage.setItem('large', largeValue);
+      localStorage.setItem('large', largeValue);
 
       const result = getStorageInfo();
 

@@ -2,6 +2,51 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
+import { SupabaseService } from '../services/supabaseService';
+import { AuthService } from '../services/authService';
+
+// Mock SupabaseService for integration tests
+jest.mock('../services/supabaseService', () => ({
+  SupabaseService: {
+    getTodos: jest.fn(() => Promise.resolve([])),
+    createTodo: jest.fn((text) => {
+      const mockTodo = {
+        id: `test-id-${Date.now()}`,
+        text,
+        completed: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      return Promise.resolve(mockTodo);
+    }),
+    updateTodo: jest.fn((id, updates) => {
+      const mockTodo = {
+        id,
+        text: updates.text || 'Test todo',
+        completed: updates.completed !== undefined ? updates.completed : false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      return Promise.resolve(mockTodo);
+    }),
+    deleteTodo: jest.fn(() => Promise.resolve()),
+    subscribeToTodos: jest.fn(() => Promise.resolve(() => {})),
+  }
+}));
+
+// Mock AuthService for integration tests
+jest.mock('../services/authService', () => ({
+  AuthService: {
+    getCurrentUser: jest.fn(() => Promise.resolve(null)),
+    signInWithGoogle: jest.fn(() => Promise.resolve({ user: null, error: null })),
+    signOut: jest.fn(() => Promise.resolve({ error: null })),
+    onAuthStateChange: jest.fn((callback) => {
+      // Immediately call callback with no user to simulate initial state
+      setTimeout(() => callback(null, 'INITIAL_SESSION'), 0);
+      return jest.fn(); // Return unsubscribe function
+    }),
+  }
+}));
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -33,14 +78,29 @@ Object.defineProperty(global, 'localStorage', {
   writable: true
 });
 
+const mockSupabaseService = SupabaseService as jest.Mocked<typeof SupabaseService>;
+const mockAuthService = AuthService as jest.Mocked<typeof AuthService>;
+
 describe('Todo App Integration Tests', () => {
   beforeEach(() => {
     localStorageMock.clear();
     jest.clearAllMocks();
+    mockSupabaseService.getTodos.mockResolvedValue([]);
+    mockAuthService.getCurrentUser.mockResolvedValue(null);
+    mockAuthService.onAuthStateChange.mockImplementation((callback) => {
+      // Immediately call callback with no user to simulate initial state
+      setTimeout(() => callback(null, 'INITIAL_SESSION'), 0);
+      return jest.fn(); // Return unsubscribe function
+    });
   });
 
   test('complete todo workflow: add, edit, toggle, filter, delete', async () => {
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
 
     // Initially should show empty state
     expect(screen.getByText('No todos yet. Add one above!')).toBeInTheDocument();
@@ -93,7 +153,7 @@ describe('Todo App Integration Tests', () => {
 
     // Edit a todo
     const editButtons = screen.getAllByText('Edit');
-    await userEvent.click(editButtons[1]); // Edit "Walk the dog"
+    await userEvent.click(editButtons[0]); // Edit "Walk the dog" (first todo)
 
     const editInput = screen.getByDisplayValue('Walk the dog');
     await userEvent.clear(editInput);
@@ -103,80 +163,104 @@ describe('Todo App Integration Tests', () => {
     expect(screen.getByText('Walk the cat')).toBeInTheDocument();
     expect(screen.queryByText('Walk the dog')).not.toBeInTheDocument();
 
-    // Delete a todo
+    // Delete a todo - delete the active one (Walk the cat)
     const deleteButtons = screen.getAllByText('Delete');
-    await userEvent.click(deleteButtons[0]); // Delete first todo
+    await userEvent.click(deleteButtons[0]); // Delete "Walk the cat" (first todo, which is active)
 
     // Verify todo was deleted
-    expect(screen.queryByText('Buy groceries')).not.toBeInTheDocument();
-    expect(screen.getByText('Walk the cat')).toBeInTheDocument();
-    expect(screen.getByText('1 item left')).toBeInTheDocument();
+    expect(screen.queryByText('Walk the cat')).not.toBeInTheDocument();
+    expect(screen.getByText('Buy groceries')).toBeInTheDocument();
+    expect(screen.getByText('0 items left')).toBeInTheDocument();
     expect(screen.getByText('All (1)')).toBeInTheDocument();
-    expect(screen.getByText('Active (1)')).toBeInTheDocument();
-    expect(screen.getByText('Completed (0)')).toBeInTheDocument();
+    expect(screen.getByText('Active (0)')).toBeInTheDocument();
+    expect(screen.getByText('Completed (1)')).toBeInTheDocument();
   });
 
-  test('persistence: todos are saved and loaded from localStorage', async () => {
+  test('persistence: todos are saved and loaded from Supabase', async () => {
     // First render - add some todos
     const { unmount } = render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
 
     const input = screen.getByPlaceholderText('What needs to be done?');
     await userEvent.type(input, 'Persistent todo');
     await userEvent.click(screen.getByText('Add Todo'));
 
+    // Verify todo was added
+    expect(screen.getByText('Persistent todo')).toBeInTheDocument();
+
     // Complete the todo
     const checkbox = screen.getByRole('checkbox');
     await userEvent.click(checkbox);
 
-    // Verify localStorage was called
-    expect(localStorageMock.setItem).toHaveBeenCalled();
+    // Verify todo is completed
+    expect(checkbox).toBeChecked();
+    expect(screen.getByText('0 items left')).toBeInTheDocument();
 
     // Unmount and remount to simulate page reload
     unmount();
 
-    // Mock localStorage to return our saved data
-    const savedData = JSON.stringify([
+    // Mock SupabaseService to return our saved data
+    const { SupabaseService } = require('../services/supabaseService');
+    SupabaseService.getTodos.mockResolvedValue([
       {
         id: '1',
         text: 'Persistent todo',
         completed: true,
-        createdAt: new Date().toISOString()
+        createdAt: new Date()
       }
     ]);
-    localStorageMock.getItem.mockReturnValue(savedData);
 
     // Render again
     render(<App />);
 
-    // Verify todo was loaded from localStorage
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
+
+    // Verify todo was loaded from Supabase
     expect(screen.getByText('Persistent todo')).toBeInTheDocument();
     expect(screen.getByRole('checkbox')).toBeChecked();
     expect(screen.getByText('0 items left')).toBeInTheDocument();
   });
 
-  test('error handling: shows error when localStorage save fails', async () => {
-    // Mock localStorage.setItem to throw an error
-    localStorageMock.setItem.mockImplementation(() => {
-      throw new Error('Storage error');
-    });
+  test('error handling: shows error when Supabase save fails', async () => {
+    // Mock SupabaseService.createTodo to throw an error
+    const { SupabaseService } = require('../services/supabaseService');
+    SupabaseService.createTodo.mockRejectedValue(new Error('Database error'));
 
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
 
     const input = screen.getByPlaceholderText('What needs to be done?');
     await userEvent.type(input, 'Test todo');
     await userEvent.click(screen.getByText('Add Todo'));
 
-    // Should show error message
+    // Wait a moment for the error to be processed
     await waitFor(() => {
-      expect(screen.getByText('⚠️ Failed to save todos. Storage may be full.')).toBeInTheDocument();
-    });
+      // The todo should be removed from the UI after the error
+      expect(screen.queryByText('Test todo')).not.toBeInTheDocument();
+    }, { timeout: 3000 });
 
-    // Todo should still be added to state even if save fails
-    expect(screen.getByText('Test todo')).toBeInTheDocument();
+    // Should show empty state since todo creation failed
+    expect(screen.getByText('No todos yet. Add one above!')).toBeInTheDocument();
   });
 
   test('edge cases: empty input handling', async () => {
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
 
     const input = screen.getByPlaceholderText('What needs to be done?');
     const addButton = screen.getByText('Add Todo');
@@ -200,6 +284,11 @@ describe('Todo App Integration Tests', () => {
   test('keyboard navigation: Enter key works for adding todos', async () => {
     render(<App />);
 
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
+
     const input = screen.getByPlaceholderText('What needs to be done?');
     await userEvent.type(input, 'Keyboard todo{enter}');
 
@@ -209,6 +298,11 @@ describe('Todo App Integration Tests', () => {
 
   test('edit mode: Escape cancels edit, Enter saves edit', async () => {
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
 
     // Add a todo
     const input = screen.getByPlaceholderText('What needs to be done?');
@@ -243,32 +337,53 @@ describe('Todo App Integration Tests', () => {
   test('filter persistence: filter state is maintained during operations', async () => {
     render(<App />);
 
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
+
     // Add multiple todos
     const input = screen.getByPlaceholderText('What needs to be done?');
-    await userEvent.type(input, 'Active todo');
+    await userEvent.type(input, 'First todo');
     await userEvent.click(screen.getByText('Add Todo'));
 
-    await userEvent.type(input, 'Another todo');
+    await userEvent.type(input, 'Second todo');
     await userEvent.click(screen.getByText('Add Todo'));
 
-    // Test filter functionality (skip checkbox state changes)
+    // Complete the first todo to have both active and completed todos
+    const checkboxes = screen.getAllByRole('checkbox');
+    await userEvent.click(checkboxes[1]); // Complete first todo
+
+    // Wait for the state to update
+    await waitFor(() => {
+      expect(screen.getByText('Active (1)')).toBeInTheDocument();
+      expect(screen.getByText('Completed (1)')).toBeInTheDocument();
+    });
+
     // Switch to active filter
-    await userEvent.click(screen.getByText('Active (2)'));
-    expect(screen.getByText('Another todo')).toBeInTheDocument();
-    expect(screen.queryByText('Active todo')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText('Active (1)'));
+    
+    // Should only show active todos
+    expect(screen.getByText('Second todo')).toBeInTheDocument();
+    expect(screen.queryByText('First todo')).not.toBeInTheDocument();
 
     // Add a new todo while in active filter
     await userEvent.type(input, 'New active todo');
     await userEvent.click(screen.getByText('Add Todo'));
 
     // Should still be in active filter and show both active todos
-    expect(screen.getByText('Another todo')).toBeInTheDocument();
+    expect(screen.getByText('Second todo')).toBeInTheDocument();
     expect(screen.getByText('New active todo')).toBeInTheDocument();
-    expect(screen.queryByText('Active todo')).not.toBeInTheDocument();
+    expect(screen.queryByText('First todo')).not.toBeInTheDocument();
   });
 
   test('double-click to edit functionality', async () => {
     render(<App />);
+
+    // Wait for the loading to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your todos...')).not.toBeInTheDocument();
+    });
 
     // Add a todo
     const input = screen.getByPlaceholderText('What needs to be done?');

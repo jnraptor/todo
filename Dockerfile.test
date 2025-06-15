@@ -1,0 +1,26 @@
+# Dockerfile specifically for running tests
+FROM node:24-alpine AS test
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Set test environment variables
+ENV REACT_APP_SUPABASE_URL=https://test.supabase.co
+ENV REACT_APP_SUPABASE_ANON_KEY=test-anon-key
+ENV REACT_APP_REDIRECT_URL=http://localhost:3000
+ENV CI=true
+
+# Create test results directory
+RUN mkdir -p /app/test-results
+
+# Run tests with coverage and output results
+CMD ["npm", "test", "--", "--coverage", "--watchAll=false", "--passWithNoTests", "--coverageReporters=text", "--coverageReporters=lcov", "--coverageReporters=html"]

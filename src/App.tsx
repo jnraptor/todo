@@ -76,7 +76,7 @@ function App() {
             ]);
             
             if (mounted) {
-              setTodos(supabaseTodos);
+              setTodos(supabaseTodos || []); // Ensure we always have an array
             }
           } catch (error) {
             console.error('Failed to load initial todos:', error);
@@ -270,7 +270,11 @@ function App() {
         
         // Then create in Supabase and replace with real todo
         const newTodo = await SupabaseService.createTodo(text);
-        setTodos(prevTodos => [newTodo, ...prevTodos.filter(t => t.id !== tempTodo.id)]);
+        setTodos(prevTodos => {
+          const filtered = prevTodos.filter(t => t.id !== tempTodo.id);
+          const finalTodo = newTodo || tempTodo; // Fallback to temp todo if newTodo is undefined
+          return [finalTodo, ...filtered];
+        });
       } else {
         // Optimistic update for offline
         const tempTodo: Todo = {
@@ -379,8 +383,8 @@ function App() {
 
   const todoCount = {
     all: todos.length,
-    active: todos.filter(todo => !todo.completed).length,
-    completed: todos.filter(todo => todo.completed).length
+    active: todos.filter(todo => todo && !todo.completed).length,
+    completed: todos.filter(todo => todo && todo.completed).length
   };
 
   const handleAuthPromptAction = () => {
