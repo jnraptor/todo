@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface ConnectionStatusProps {
   isOnline: boolean;
@@ -11,6 +11,33 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   syncStatus, 
   queueLength = 0 
 }) => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    // Check if status is "connected and synced"
+    const isConnectedAndSynced = isOnline && syncStatus === 'synced';
+    
+    if (isConnectedAndSynced) {
+      // Show the bar initially
+      setIsVisible(true);
+      
+      // Set timer to hide after 3 seconds
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+      }, 3000);
+      
+      // Cleanup timer on unmount or dependency change
+      return () => clearTimeout(timer);
+    } else {
+      // For all other statuses, always show the bar
+      setIsVisible(true);
+    }
+  }, [isOnline, syncStatus]);
+
+  // Don't render anything if not visible
+  if (!isVisible) {
+    return null;
+  }
   if (!isOnline) {
     return (
       <div className="connection-status offline">

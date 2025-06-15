@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import ConnectionStatus from '../ConnectionStatus';
 
 describe('ConnectionStatus Component', () => {
@@ -346,6 +346,107 @@ describe('ConnectionStatus Component', () => {
       // Re-render with same props
       rerender(<ConnectionStatus isOnline={false} syncStatus="synced" queueLength={5} />);
       expect(screen.getByText(/5 changes will sync when reconnected/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('Auto-hide Functionality', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.runOnlyPendingTimers();
+      jest.useRealTimers();
+    });
+
+    it('should hide the status bar after 3 seconds when connected and synced', () => {
+      const { container } = render(<ConnectionStatus isOnline={true} syncStatus="synced" />);
+      
+      // Initially should be visible
+      expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      
+      // Fast-forward time by 2.5 seconds - should still be visible
+      act(() => {
+        jest.advanceTimersByTime(2500);
+      });
+      expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      
+      // Fast-forward time by another 1 second (total 3.5 seconds) - should be hidden
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+      expect(screen.queryByText(/connected and synced/i)).not.toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).not.toBeInTheDocument();
+    });
+
+    it('should not hide the status bar for offline status', () => {
+      const { container } = render(<ConnectionStatus isOnline={false} syncStatus="synced" />);
+      
+      // Initially should be visible
+      expect(screen.getByText(/offline/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      
+      // Fast-forward time by 5 seconds - should still be visible
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+      expect(screen.getByText(/offline/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+    });
+
+    it('should not hide the status bar for syncing status', () => {
+      const { container } = render(<ConnectionStatus isOnline={true} syncStatus="syncing" />);
+      
+      // Initially should be visible
+      expect(screen.getByText(/syncing/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      
+      // Fast-forward time by 5 seconds - should still be visible
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+      expect(screen.getByText(/syncing/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+    });
+
+    it('should not hide the status bar for error status', () => {
+      const { container } = render(<ConnectionStatus isOnline={true} syncStatus="error" />);
+      
+      // Initially should be visible
+      expect(screen.getByText(/sync error/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+      
+      // Fast-forward time by 5 seconds - should still be visible
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+      expect(screen.getByText(/sync error/i)).toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).toBeInTheDocument();
+    });
+
+    it('should restart timer when status changes back to synced', () => {
+      const { container, rerender } = render(<ConnectionStatus isOnline={true} syncStatus="syncing" />);
+      
+      // Initially syncing - should be visible
+      expect(screen.getByText(/syncing/i)).toBeInTheDocument();
+      
+      // Change to synced status
+      rerender(<ConnectionStatus isOnline={true} syncStatus="synced" />);
+      expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      
+      // Fast-forward time by 2.5 seconds - should still be visible
+      act(() => {
+        jest.advanceTimersByTime(2500);
+      });
+      expect(screen.getByText(/connected and synced/i)).toBeInTheDocument();
+      
+      // Fast-forward time by another 1 second (total 3.5 seconds) - should be hidden
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+      expect(screen.queryByText(/connected and synced/i)).not.toBeInTheDocument();
+      expect(container.querySelector('.connection-status')).not.toBeInTheDocument();
     });
   });
 });
