@@ -6,44 +6,68 @@ interface ConnectionStatusProps {
   queueLength?: number;
 }
 
-const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ 
-  isOnline, 
-  syncStatus, 
-  queueLength = 0 
+const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
+  isOnline,
+  syncStatus,
+  queueLength = 0
 }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+  
+  // Check if this should be a notification style
+  const isNotification = isOnline && syncStatus === 'synced';
 
   useEffect(() => {
-    // Check if status is "connected and synced"
-    const isConnectedAndSynced = isOnline && syncStatus === 'synced';
-    
-    if (isConnectedAndSynced) {
-      // Show the bar initially and reset animation state
+    if (isNotification) {
+      // Reset states for notification
       setIsVisible(true);
       setIsAnimatingOut(false);
       
-      // Set timer to start hide animation after 3 seconds
+      // Auto-hide after 3 seconds
       const timer = setTimeout(() => {
         setIsAnimatingOut(true);
-        // After animation completes, hide the component completely
         setTimeout(() => {
           setIsVisible(false);
-        }, 300); // Match the CSS transition duration
+        }, 300);
       }, 3000);
       
-      // Cleanup timer on unmount or dependency change
       return () => clearTimeout(timer);
     } else {
-      // For all other statuses, always show the bar and reset animation state
+      // For other statuses, always show
       setIsVisible(true);
       setIsAnimatingOut(false);
     }
-  }, [isOnline, syncStatus]);
+  }, [isOnline, syncStatus, isNotification]);
+
+  const handleManualDismiss = () => {
+    setIsAnimatingOut(true);
+    setTimeout(() => {
+      setIsVisible(false);
+    }, 300);
+  };
 
   // Don't render anything if not visible
   if (!isVisible) {
     return null;
+  }
+
+  // Render as notification for "connected and synced"
+  if (isNotification) {
+    return (
+      <div className={`connection-status-notification${isAnimatingOut ? ' slide-out' : ''}`}>
+        <div className="notification-content">
+          <span className="status-icon">✅</span>
+          <span>Connected and synced</span>
+        </div>
+        <button
+          className="notification-close"
+          onClick={handleManualDismiss}
+          aria-label="Dismiss notification"
+        >
+          ×
+        </button>
+      </div>
+    );
   }
   if (!isOnline) {
     return (
@@ -70,16 +94,6 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
       <div className={`connection-status error${isAnimatingOut ? ' slide-out' : ''}`}>
         <span className="status-icon">⚠️</span>
         <span>Sync error - Will retry automatically</span>
-      </div>
-    );
-  }
-  
-  // Show synced status when online and synced
-  if (isOnline && syncStatus === 'synced') {
-    return (
-      <div className={`connection-status synced${isAnimatingOut ? ' slide-out' : ''}`}>
-        <span className="status-icon">✅</span>
-        <span>Connected and synced</span>
       </div>
     );
   }
