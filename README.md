@@ -1,5 +1,7 @@
 # Todo App
 
+[![codecov](https://codecov.io/gh/jnraptor/todo/graph/badge.svg?token=2MQEOGF2QJ)](https://codecov.io/gh/jnraptor/todo)
+
 A modern, full-stack todo application built with React, TypeScript, and Supabase. Features seamless authentication, real-time sync, offline support, and Docker deployment. Stay organized and get things done with this professional-grade application.
 
 ![Todo App Screenshot](https://via.placeholder.com/600x400/667eea/ffffff?text=Todo+App+with+Auth)
