@@ -437,6 +437,12 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  transform: translateY(0);
+  transition: transform 0.3s ease-in-out;
+}
+
+.connection-status.slide-out {
+  transform: translateY(-100%);
 }
 
 .connection-status.offline {
