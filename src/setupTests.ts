@@ -8,14 +8,13 @@ import '@testing-library/jest-dom';
 process.env.REACT_APP_SUPABASE_URL = 'https://test.supabase.co';
 process.env.REACT_APP_SUPABASE_ANON_KEY = 'test-anon-key';
 
-// Mock react-router-dom
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  BrowserRouter: ({ children }: { children: any }) => children,
-  Routes: ({ children }: { children: any }) => children,
-  Route: ({ element }: { element: any }) => element,
-  useNavigate: () => jest.fn(),
-}));
+// Mock react-router-dom - commented out due to module resolution issues
+// jest.mock('react-router-dom', () => ({
+//   BrowserRouter: ({ children }: { children: any }) => children,
+//   Routes: ({ children }: { children: any }) => children,
+//   Route: ({ element }: { element: any }) => element,
+//   useNavigate: () => jest.fn(),
+// }));
 
 // Mock Supabase client
 jest.mock('./config/supabase', () => ({
