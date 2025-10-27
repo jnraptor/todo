@@ -1,5 +1,5 @@
 # Dockerfile specifically for running tests
-FROM node:24-alpine AS test
+FROM node:25-alpine AS test
 
 # Set working directory
 WORKDIR /app

@@ -1,6 +1,6 @@
 # Multi-stage build for React TypeScript application
 # Stage 1: Install dependencies and run tests
-FROM node:24-alpine AS test
+FROM node:25-alpine AS test
 
 # Set working directory
 WORKDIR /app
@@ -24,7 +24,7 @@ ENV CI=true
 RUN npm test -- --coverage --watchAll=false --passWithNoTests
 
 # Stage 2: Build the application
-FROM node:24-alpine AS builder
+FROM node:25-alpine AS builder
 
 # Set working directory
 WORKDIR /app
